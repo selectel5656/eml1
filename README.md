@@ -4,6 +4,33 @@
 Панель запускается как веб‑сайт на Python (Flask).
 Для работы требуются пакеты `Flask`, `Flask-SQLAlchemy`, `requests`, а также
 `python-docx` и `fpdf` для обработки DOCX и преобразования в PDF.
+User-Agent для запросов указывается на вкладке «Настройки».
+
+## Установка и запуск
+
+### Ubuntu
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip
+git clone <URL_репозитория> eml_panel
+cd eml_panel
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt  # либо установить Flask и др. пакеты вручную
+python app.py
+```
+Панель будет доступна по адресу `http://<IP>:5000`.
+
+### Windows
+```powershell
+git clone <URL_репозитория> eml_panel
+cd eml_panel
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+Затем откройте `http://localhost:5000` в браузере.
 
 
 Вход в панель должен быть по логину и паролю по умолчанию это пусть будет admin/admin

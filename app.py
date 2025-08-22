@@ -56,6 +56,8 @@ def init_db():
             db.session.add(Setting(key='quality_every', value='0'))
         if not Setting.query.filter_by(key='quality_email').first():
             db.session.add(Setting(key='quality_email', value=''))
+        if not Setting.query.filter_by(key='threads').first():
+            db.session.add(Setting(key='threads', value='1'))
         if not Setting.query.filter_by(key='total_sent').first():
             db.session.add(Setting(key='total_sent', value='0'))
         db.session.commit()
@@ -867,14 +869,18 @@ def reset_counts():
 def settings():
     domain_setting = Setting.query.filter_by(key='domain').first()
     ua_setting = Setting.query.filter_by(key='user_agent').first()
+    threads_setting = Setting.query.filter_by(key='threads').first()
     if request.method == 'POST':
         domain = request.form.get('domain')
         user_agent = request.form.get('user_agent')
+        threads = request.form.get('threads')
         password = request.form.get('password')
         if domain:
             domain_setting.value = domain
         if user_agent and ua_setting:
             ua_setting.value = user_agent
+        if threads and threads_setting:
+            threads_setting.value = threads
         if password:
             user = User.query.filter_by(username='admin').first()
             user.set_password(password)
@@ -882,7 +888,8 @@ def settings():
         flash('Настройки сохранены')
     domain = domain_setting.value if domain_setting else ''
     user_agent = ua_setting.value if ua_setting else ''
-    return render_template('settings.html', domain=domain, user_agent=user_agent)
+    threads = threads_setting.value if threads_setting else ''
+    return render_template('settings.html', domain=domain, user_agent=user_agent, threads=threads)
 
 
 if __name__ == '__main__':
