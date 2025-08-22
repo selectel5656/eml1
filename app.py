@@ -210,6 +210,43 @@ def evaluate_macro(m: Macro) -> str:
     return value
 
 
+def preview_macro_value(macro_type: str, cfg: dict) -> str:
+    """Generate a sample value for macro creation preview."""
+    if macro_type == 'counter':
+        start = int(cfg.get('start', 0))
+        step = int(cfg.get('step', 1))
+        current = int(cfg.get('current', start))
+        return str(current)
+    if macro_type == 'random':
+        chars = cfg.get('chars', string.ascii_letters)
+        min_len = int(cfg.get('min_len', 5))
+        max_len = int(cfg.get('max_len', 10))
+        n = random.randint(min_len, max_len)
+        return ''.join(random.choice(chars) for _ in range(n))
+    if macro_type == 'list':
+        items = cfg.get('items', [])
+        if not items:
+            return ''
+        mode = cfg.get('mode', 'random')
+        if mode == 'sequential':
+            idx = int(cfg.get('index', 0))
+            return items[idx % len(items)]
+        return random.choice(items)
+    if macro_type == 'multi':
+        expr = cfg.get('expr', '')
+        encoding = cfg.get('encoding', 'none')
+        value = expr
+        for other in Macro.query.all():
+            val = evaluate_macro(other)
+            value = value.replace(f'{{$' + other.name + '}}', val)
+        if encoding == 'base64':
+            value = base64.b64encode(value.encode()).decode()
+        elif encoding == 'quoted-printable':
+            value = quopri.encodestring(value.encode()).decode()
+        return value
+    return cfg.get('value', '')
+
+
 def render_macros(text: str) -> str:
     """Replace macro placeholders with values."""
     macros = Macro.query.all()
@@ -436,6 +473,49 @@ def macros():
             flash('Макрос добавлен')
     macros = Macro.query.all()
     return render_template('macros.html', macros=macros)
+
+
+@app.route('/macro_test', methods=['POST'])
+@login_required
+def macro_test():
+    macro_type = request.form.get('macro_type')
+    cfg = {}
+    if macro_type == 'counter':
+        cfg = {
+            'start': int(request.form.get('start') or 0),
+            'step': int(request.form.get('step') or 1),
+            'current': int(request.form.get('start') or 0),
+        }
+    elif macro_type == 'random':
+        cfg = {
+            'chars': request.form.get('chars') or string.ascii_letters,
+            'min_len': int(request.form.get('min_len') or 5),
+            'max_len': int(request.form.get('max_len') or 10),
+        }
+    elif macro_type == 'list':
+        uploaded = request.files.get('file')
+        items = []
+        if uploaded:
+            text = uploaded.read().decode('utf-8')
+            src = request.form.get('source') or 'lines'
+            if src == 'words':
+                items = re.findall(r'\w+', text)
+            elif src == 'sentences':
+                items = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
+            else:
+                items = [line.strip() for line in text.splitlines() if line.strip()]
+        cfg = {
+            'items': items,
+            'mode': request.form.get('mode') or 'random',
+            'index': 0,
+        }
+    elif macro_type == 'multi':
+        cfg = {
+            'expr': request.form.get('expression') or '',
+            'encoding': request.form.get('encoding') or 'none',
+        }
+    value = preview_macro_value(macro_type or '', cfg)
+    return value
 
 
 @app.route('/macros/delete/<int:macro_id>')

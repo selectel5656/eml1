@@ -15,10 +15,10 @@
 </table>
 <h3>Добавить макрос</h3>
 <form method="post" enctype="multipart/form-data">
- <div class="mb-3">
-   <label class="form-label">Имя</label>
-   <input class="form-control" name="name">
- </div>
+<div class="mb-3">
+  <label class="form-label">Имя</label>
+  <input class="form-control" name="name">
+</div>
  <div class="mb-3">
    <label class="form-label">Тип</label>
    <select name="macro_type" class="form-select" id="macro_type">
@@ -62,9 +62,11 @@
   </select>
 </div>
  <div class="mb-3">
-   <label>Частота обновления (N)</label><input name="frequency" class="form-control" value="1">
- </div>
+ <label>Частота обновления (N)</label><input name="frequency" class="form-control" value="1">
+</div>
  <button class="btn btn-primary">Сохранить</button>
+ <button type="button" class="btn btn-secondary" id="test_btn">ТЕСТ</button>
+ <div id="test_result" class="mt-2"></div>
 </form>
 <script>
 const typeSelect = document.getElementById('macro_type');
@@ -77,5 +79,13 @@ function updateFields() {
 }
 typeSelect.addEventListener('change', updateFields);
 updateFields();
+
+document.getElementById('test_btn').addEventListener('click', () => {
+  const form = document.querySelector('form');
+  const data = new FormData(form);
+  fetch('{{ url_for('macro_test') }}', {method: 'POST', body: data})
+    .then(r => r.text())
+    .then(t => { document.getElementById('test_result').innerText = t; });
+});
 </script>
 {% endblock %}

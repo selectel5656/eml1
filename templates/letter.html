@@ -20,6 +20,10 @@
           {% if a.macro_base64 %} макрос: {{'{{$'+a.macro_base64+'}}'}}{% endif %}
           {% if a.macro_url %} url: {{'{{$'+a.macro_url+'}}'}}{% endif %}
           {% if a.macro_id %} id: {{'{{$'+a.macro_id+'}}'}}{% endif %}
+          {% if a.inline and a.macro_base64 %}
+            {% set ext = a.filename.split('.')[-1].lower() %}
+            <br><small>пример: &lt;img src="data:image/{{ext}};base64,{{'{{$'+a.macro_base64+'}}'}}"></small>
+          {% endif %}
         </label>
       </div><br>
     {% endfor %}
