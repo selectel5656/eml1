@@ -45,11 +45,32 @@
     <option value="words">Слова</option>
     <option value="sentences">Предложения</option>
   </select>
-  <label>Как брать</label>
+ <label>Как брать</label>
  <select name="mode" class="form-select">
     <option value="random">Рандомно</option>
     <option value="sequential">Последовательно</option>
  </select>
+  <label class="mt-2">Слов в предложении (от - до)</label>
+  <div class="input-group mb-2">
+    <input name="words_min" class="form-control">
+    <input name="words_max" class="form-control">
+  </div>
+  <label>Предложений в абзаце (от - до)</label>
+  <div class="input-group mb-2">
+    <input name="sent_min" class="form-control">
+    <input name="sent_max" class="form-control">
+  </div>
+  <label>Абзацев (от - до)</label>
+  <div class="input-group mb-2">
+    <input name="para_min" class="form-control">
+    <input name="para_max" class="form-control">
+  </div>
+  <div class="form-check mb-2">
+    <input class="form-check-input" type="checkbox" name="as_html" id="as_html">
+    <label class="form-check-label" for="as_html">Формировать HTML</label>
+  </div>
+  <label>Дополнительный текст для HTML</label>
+  <textarea name="html_extra" class="form-control"></textarea>
 </div>
 <div id="multi_fields" style="display:none;">
   <label>Выражение</label>

@@ -180,12 +180,48 @@ def evaluate_macro(m: Macro) -> str:
         items = cfg.get('items', [])
         if items:
             mode = cfg.get('mode', 'random')
-            if mode == 'sequential':
-                idx = int(cfg.get('index', 0))
-                value = items[idx % len(items)]
-                cfg['index'] = idx + 1
+            if cfg.get('words_min'):
+                wmin = int(cfg.get('words_min', 1))
+                wmax = int(cfg.get('words_max', wmin))
+                smin = int(cfg.get('sent_min', 1))
+                smax = int(cfg.get('sent_max', smin))
+                pmin = int(cfg.get('para_min', 1))
+                pmax = int(cfg.get('para_max', pmin))
+                as_html = cfg.get('as_html', False)
+                extra = cfg.get('html_extra', '')
+                paragraphs = []
+                for _ in range(random.randint(pmin, pmax)):
+                    sentences = []
+                    for _ in range(random.randint(smin, smax)):
+                        count = random.randint(wmin, wmax)
+                        words = []
+                        if mode == 'sequential':
+                            idx = int(cfg.get('index', 0))
+                            for _ in range(count):
+                                words.append(items[idx % len(items)])
+                                idx += 1
+                            cfg['index'] = idx
+                        else:
+                            words = [random.choice(items) for _ in range(count)]
+                        sentence = ' '.join(words).strip()
+                        if sentence:
+                            sentence = sentence[0].upper() + sentence[1:]
+                        sentences.append(sentence + '.')
+                    paragraph = ' '.join(sentences)
+                    if as_html:
+                        paragraphs.append(f'<p>{paragraph}</p>')
+                    else:
+                        paragraphs.append(paragraph)
+                value = '\n\n'.join(paragraphs)
+                if as_html and extra:
+                    value += extra
             else:
-                value = random.choice(items)
+                if mode == 'sequential':
+                    idx = int(cfg.get('index', 0))
+                    value = items[idx % len(items)]
+                    cfg['index'] = idx + 1
+                else:
+                    value = random.choice(items)
         else:
             value = ''
     elif m.macro_type == 'multi':
@@ -228,6 +264,39 @@ def preview_macro_value(macro_type: str, cfg: dict) -> str:
         if not items:
             return ''
         mode = cfg.get('mode', 'random')
+        if cfg.get('words_min'):
+            wmin = int(cfg.get('words_min', 1))
+            wmax = int(cfg.get('words_max', wmin))
+            smin = int(cfg.get('sent_min', 1))
+            smax = int(cfg.get('sent_max', smin))
+            pmin = int(cfg.get('para_min', 1))
+            pmax = int(cfg.get('para_max', pmin))
+            as_html = cfg.get('as_html', False)
+            extra = cfg.get('html_extra', '')
+            paragraphs = []
+            tmp_idx = int(cfg.get('index', 0))
+            for _ in range(random.randint(pmin, pmax)):
+                sentences = []
+                for _ in range(random.randint(smin, smax)):
+                    count = random.randint(wmin, wmax)
+                    if mode == 'sequential':
+                        words = [items[(tmp_idx + i) % len(items)] for i in range(count)]
+                        tmp_idx += count
+                    else:
+                        words = [random.choice(items) for _ in range(count)]
+                    sentence = ' '.join(words).strip()
+                    if sentence:
+                        sentence = sentence[0].upper() + sentence[1:]
+                    sentences.append(sentence + '.')
+                paragraph = ' '.join(sentences)
+                if as_html:
+                    paragraphs.append(f'<p>{paragraph}</p>')
+                else:
+                    paragraphs.append(paragraph)
+            value = '\n\n'.join(paragraphs)
+            if as_html and extra:
+                value += extra
+            return value
         if mode == 'sequential':
             idx = int(cfg.get('index', 0))
             return items[idx % len(items)]
@@ -461,7 +530,20 @@ def macros():
                 'items': items,
                 'mode': request.form.get('mode') or 'random',
                 'index': 0,
+                'source': request.form.get('source') or 'lines',
             }
+            wmin = request.form.get('words_min')
+            if wmin:
+                cfg.update({
+                    'words_min': int(wmin or 1),
+                    'words_max': int(request.form.get('words_max') or wmin or 1),
+                    'sent_min': int(request.form.get('sent_min') or 1),
+                    'sent_max': int(request.form.get('sent_max') or 1),
+                    'para_min': int(request.form.get('para_min') or 1),
+                    'para_max': int(request.form.get('para_max') or 1),
+                    'as_html': bool(request.form.get('as_html')),
+                    'html_extra': request.form.get('html_extra') or '',
+                })
         elif macro_type == 'multi':
             cfg = {
                 'expr': request.form.get('expression') or '',
@@ -508,7 +590,20 @@ def macro_test():
             'items': items,
             'mode': request.form.get('mode') or 'random',
             'index': 0,
+            'source': request.form.get('source') or 'lines',
         }
+        wmin = request.form.get('words_min')
+        if wmin:
+            cfg.update({
+                'words_min': int(wmin or 1),
+                'words_max': int(request.form.get('words_max') or wmin or 1),
+                'sent_min': int(request.form.get('sent_min') or 1),
+                'sent_max': int(request.form.get('sent_max') or 1),
+                'para_min': int(request.form.get('para_min') or 1),
+                'para_max': int(request.form.get('para_max') or 1),
+                'as_html': bool(request.form.get('as_html')),
+                'html_extra': request.form.get('html_extra') or '',
+            })
     elif macro_type == 'multi':
         cfg = {
             'expr': request.form.get('expression') or '',
