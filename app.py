@@ -5,6 +5,7 @@ import string
 import time
 import requests
 import quopri
+import threading
 from PIL import Image, ImageDraw
 from functools import wraps
 from flask import (
@@ -65,6 +66,10 @@ def init_db():
 
 init_db()
 
+
+send_threads: list[threading.Thread] = []
+sending = False
+stop_flag = False
 
 def login_required(f):
     @wraps(f)
@@ -156,6 +161,124 @@ def acquire_proxy_for_account(account: ApiAccount) -> str | None:
             account.proxy_id = proxy.id
             db.session.commit()
     return addr
+
+
+def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
+    """Send a single batch of emails according to current settings."""
+    limit = int(get_setting('per_account_limit', '1'))
+    cycle = get_setting('cycle_accounts', 'no') == 'yes'
+    attempts = int(get_setting('send_attempts', '1'))
+    timeout = int(get_setting('server_timeout', '30'))
+    pause = int(get_setting('pause_between', '0'))
+    rec_count = int(get_setting('recipients_per_message', '1'))
+    method = get_setting('recipient_method', 'bcc')
+    first = get_setting('first_recipient_to', 'no') == 'yes'
+    q_every = int(get_setting('quality_every', '0'))
+    q_email = get_setting('quality_email', '')
+
+    account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
+    if not account and cycle:
+        ApiAccount.query.update({ApiAccount.send_count: 0})
+        db.session.commit()
+        account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
+    if not account:
+        return False
+
+    success = False
+    for _proxy_try in range(3):
+        proxy_addr = acquire_proxy_for_account(account)
+        client = ApiClient(
+            get_domain(),
+            account.api_key,
+            account.uuid,
+            login=account.login,
+            from_name=account.first_name or '',
+            user_agent=get_user_agent(),
+            proxy=proxy_addr,
+            timeout=timeout,
+        )
+        if not client.check_account():
+            release_proxy(account)
+            continue
+
+        att_ids: list[str] = []
+        for sid in selected:
+            att = Attachment.query.get(int(sid))
+            if att:
+                if (not att.inline) or att.upload_to_server:
+                    if not att.remote_id:
+                        res = client.upload_attachment(att.path, att.filename)
+                        att.remote_id = res.get('id')
+                        att.remote_url = res.get('url')
+                        db.session.commit()
+                    if att.remote_id:
+                        att_ids.append(att.remote_id)
+
+        subject = render_macros(subject_raw)
+        body = render_macros(body_raw)
+        emails = EmailEntry.query.filter_by(sent=False, in_progress=False).limit(rec_count).all()
+        if not emails:
+            return False
+        for e in emails:
+            e.in_progress = True
+        db.session.commit()
+        recipients = [e.email for e in emails]
+        for _ in range(attempts):
+            operation_id = client.generate_operation_id()
+            if not operation_id:
+                continue
+            if client.send_mail(
+                subject,
+                body,
+                recipients,
+                att_ids,
+                operation_id,
+                method=method,
+                first_to=first,
+            ):
+                success = True
+                break
+        if success:
+            break
+        release_proxy(account)
+
+    if success:
+        account.send_count = account.send_count + 1
+        total_sent = int(get_setting('total_sent', '0')) + 1
+        Setting.query.filter_by(key='total_sent').first().value = str(total_sent)
+        for e in emails:
+            e.sent = True
+            e.in_progress = False
+        db.session.commit()
+        if q_every and q_email and total_sent % q_every == 0:
+            qc_id = client.generate_operation_id()
+            if qc_id:
+                client.send_mail(
+                    'Test',
+                    'Quality check',
+                    [q_email],
+                    [],
+                    qc_id,
+                    method='to',
+                )
+        if pause > 0:
+            time.sleep(pause)
+        return True
+    else:
+        for e in emails:
+            e.in_progress = False
+        db.session.commit()
+        return False
+
+
+def send_worker(subject_raw: str, body_raw: str, selected: list[str]) -> None:
+    """Thread worker that keeps sending batches until stopped."""
+    with app.app_context():
+        while not stop_flag:
+            if not EmailEntry.query.filter_by(sent=False, in_progress=False).first():
+                break
+            if not send_batch(subject_raw, body_raw, selected):
+                time.sleep(1)
 
 def evaluate_macro(m: Macro) -> str:
     """Evaluate macro value and update usage counters."""
@@ -341,119 +464,31 @@ def render_macros(text: str) -> str:
 @app.route('/letter', methods=['GET', 'POST'])
 @login_required
 def letter():
+    global sending, stop_flag, send_threads
     attachments = Attachment.query.all()
     macros = Macro.query.all()
     if request.method == 'POST':
-        subject_raw = request.form.get('subject') or ''
-        body_raw = request.form.get('body') or ''
-        selected = request.form.getlist('attachments')
-
-        limit = int(get_setting('per_account_limit', '1'))
-        cycle = get_setting('cycle_accounts', 'no') == 'yes'
-        attempts = int(get_setting('send_attempts', '1'))
-        timeout = int(get_setting('server_timeout', '30'))
-        pause = int(get_setting('pause_between', '0'))
-        rec_count = int(get_setting('recipients_per_message', '1'))
-        method = get_setting('recipient_method', 'bcc')
-        first = get_setting('first_recipient_to', 'no') == 'yes'
-        q_every = int(get_setting('quality_every', '0'))
-        q_email = get_setting('quality_email', '')
-
-        account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
-        if not account and cycle:
-            ApiAccount.query.update({ApiAccount.send_count: 0})
-            db.session.commit()
-            account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
-        if not account:
-            flash('Нет доступных API аккаунтов')
-            return render_template('letter.html', attachments=attachments, macros=macros)
-
-        success = False
-        for _proxy_try in range(3):
-            proxy_addr = acquire_proxy_for_account(account)
-            client = ApiClient(
-                get_domain(),
-                account.api_key,
-                account.uuid,
-                login=account.login,
-                from_name=account.first_name or '',
-                user_agent=get_user_agent(),
-                proxy=proxy_addr,
-                timeout=timeout,
-            )
-            if not client.check_account():
-                release_proxy(account)
-                continue
-
-            att_ids = []
-            for sid in selected:
-                att = Attachment.query.get(int(sid))
-                if att:
-                    if (not att.inline) or att.upload_to_server:
-                        if not att.remote_id:
-                            res = client.upload_attachment(att.path, att.filename)
-                            att.remote_id = res.get('id')
-                            att.remote_url = res.get('url')
-                            db.session.commit()
-                        if att.remote_id:
-                            att_ids.append(att.remote_id)
-
-            subject = render_macros(subject_raw)
-            body = render_macros(body_raw)
-            emails = EmailEntry.query.filter_by(sent=False, in_progress=False).limit(rec_count).all()
-            if not emails:
-                flash('Нет получателей')
-                return render_template('letter.html', attachments=attachments, macros=macros)
-            for e in emails:
-                e.in_progress = True
-            db.session.commit()
-            recipients = [e.email for e in emails]
-            for _ in range(attempts):
-                operation_id = client.generate_operation_id()
-                if not operation_id:
-                    continue
-                if client.send_mail(
-                    subject,
-                    body,
-                    recipients,
-                    att_ids,
-                    operation_id,
-                    method=method,
-                    first_to=first,
-                ):
-                    success = True
-                    break
-            if success:
-                break
-            release_proxy(account)
-        if success:
-            account.send_count = account.send_count + 1
-            total_sent = int(get_setting('total_sent', '0')) + 1
-            Setting.query.filter_by(key='total_sent').first().value = str(total_sent)
-            for e in emails:
-                e.sent = True
-                e.in_progress = False
-            db.session.commit()
-            if q_every and q_email and total_sent % q_every == 0:
-                qc_id = client.generate_operation_id()
-                if qc_id:
-                    client.send_mail(
-                        'Test',
-                        'Quality check',
-                        [q_email],
-                        [],
-                        qc_id,
-                        method='to',
-                    )
-            flash('Письмо отправлено через API')
-            if pause > 0:
-                time.sleep(pause)
-        else:
-            for e in emails:
-                e.in_progress = False
-            db.session.commit()
-            flash('Ошибка отправки письма')
-    return render_template('letter.html', attachments=attachments, macros=macros)
+        action = request.form.get('action')
+        if action == 'start' and not sending:
+            subject_raw = request.form.get('subject') or ''
+            body_raw = request.form.get('body') or ''
+            selected = request.form.getlist('attachments')
+            stop_flag = False
+            sending = True
+            send_threads = []
+            for _ in range(int(get_setting('threads', '1'))):
+                t = threading.Thread(target=send_worker, args=(subject_raw, body_raw, selected))
+                t.start()
+                send_threads.append(t)
+            flash('Отправка запущена')
+        elif action == 'stop' and sending:
+            stop_flag = True
+            for t in send_threads:
+                t.join()
+            send_threads = []
+            sending = False
+            flash('Отправка остановлена')
+    return render_template('letter.html', attachments=attachments, macros=macros, sending=sending)
 
 
 @app.route('/uploads/<path:filename>')
