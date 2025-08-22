@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Аттачи{% endblock %}
+{% block content %}
+<h2>Аттачи</h2>
+<table class="table">
+<tr><th>Имя</th><th>Файл</th><th>Макросы</th><th>Действия</th></tr>
+{% for a in attachments %}
+<tr>
+ <td>{{a.display_name}}</td>
+ <td>{{a.filename}}</td>
+ <td>
+   {% if a.macro_base64 %}base64: {{'{{$'+a.macro_base64+'}}'}} {% endif %}
+   {% if a.macro_url %}url: {{'{{$'+a.macro_url+'}}'}} {% endif %}
+   {% if a.macro_id %}id: {{'{{$'+a.macro_id+'}}'}}{% endif %}
+   {% if a.remote_url %}<br><small>uploaded url: {{a.remote_url}}</small>{% endif %}
+   {% if a.remote_id %}<br><small>uploaded id: {{a.remote_id}}</small>{% endif %}
+ </td>
+ <td>
+   <a class="btn btn-sm btn-danger" href="{{ url_for('delete_attachment', att_id=a.id) }}" onclick="return confirm('Удалить?');">Удалить</a>
+ </td>
+</tr>
+{% endfor %}
+</table>
+<h3>Добавить вложение</h3>
+<form method="post" enctype="multipart/form-data">
+<div class="mb-3">
+ <label>Имя</label><input class="form-control" name="display_name">
+</div>
+<div class="mb-3">
+ <label>Файл</label><input type="file" class="form-control" name="file">
+</div>
+<div class="form-check mb-3">
+ <input class="form-check-input" type="checkbox" name="inline" id="inline">
+ <label class="form-check-label" for="inline">Использовать внутри письма (для изображений)</label>
+</div>
+<div class="form-check mb-3">
+ <input class="form-check-input" type="checkbox" name="upload_to_server" id="upload_to_server" checked>
+ <label class="form-check-label" for="upload_to_server">Загружать на сервер</label>
+</div>
+<div class="form-check mb-3">
+ <input class="form-check-input" type="checkbox" name="randomize" id="randomize">
+ <label class="form-check-label" for="randomize">Рандомизация изображения</label>
+</div>
+<div class="row mb-3">
+ <div class="col">
+  <label>Слева от</label><input class="form-control" name="pad_left_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_left_max" value="0">
+ </div>
+ <div class="col">
+  <label>Справа от</label><input class="form-control" name="pad_right_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_right_max" value="0">
+ </div>
+</div>
+<div class="row mb-3">
+ <div class="col">
+  <label>Сверху от</label><input class="form-control" name="pad_top_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_top_max" value="0">
+ </div>
+ <div class="col">
+  <label>Снизу от</label><input class="form-control" name="pad_bottom_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_bottom_max" value="0">
+ </div>
+</div>
+<div class="row mb-3">
+ <div class="col">
+  <label>Точек мин</label><input class="form-control" name="dot_min" value="0">
+ </div>
+ <div class="col">
+  <label>Точек макс</label><input class="form-control" name="dot_max" value="0">
+ </div>
+</div>
+<button class="btn btn-primary">Загрузить</button>
+</form>
+{% endblock %}
