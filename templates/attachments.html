@@ -69,6 +69,29 @@
   <label>Точек макс</label><input class="form-control" name="dot_max" value="0">
  </div>
 </div>
+<h4>DOCX</h4>
+<div class="row mb-3">
+ <div class="col">
+  <label>Страниц от</label><input class="form-control" name="doc_pages_min" value="0">
+ </div>
+ <div class="col">
+  <label>до</label><input class="form-control" name="doc_pages_max" value="0">
+ </div>
+</div>
+<div class="mb-3">
+ <label>Текст для страниц</label>
+ <textarea class="form-control" name="doc_page_content"></textarea>
+</div>
+<div class="form-check mb-3">
+ <input class="form-check-input" type="checkbox" name="convert_to_pdf" id="convert_to_pdf">
+ <label class="form-check-label" for="convert_to_pdf">Преобразовать в PDF</label>
+</div>
+<div class="mb-3">
+ <label>Автор PDF</label><input class="form-control" name="pdf_author">
+</div>
+<div class="mb-3">
+ <label>Заголовок PDF</label><input class="form-control" name="pdf_title">
+</div>
 <button class="btn btn-primary">Загрузить</button>
 </form>
 {% endblock %}

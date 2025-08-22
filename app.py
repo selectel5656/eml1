@@ -495,6 +495,47 @@ def attachments():
                     'dots': [int(request.form.get('dot_min') or 0), int(request.form.get('dot_max') or 0)],
                 }
                 randomize_image(path, cfg)
+            # DOCX specific processing
+            if filename.lower().endswith('.docx'):
+                pages_min = int(request.form.get('doc_pages_min') or 0)
+                pages_max = int(request.form.get('doc_pages_max') or 0)
+                page_text = request.form.get('doc_page_content') or ''
+                if pages_max > 0:
+                    try:
+                        from docx import Document
+                        doc = Document(path)
+                        count = random.randint(pages_min, pages_max)
+                        for _ in range(count):
+                            doc.add_page_break()
+                            doc.add_paragraph(render_macros(page_text))
+                        doc.save(path)
+                    except Exception:
+                        pass
+                if request.form.get('convert_to_pdf'):
+                    try:
+                        from docx import Document
+                        from fpdf import FPDF
+                        doc = Document(path)
+                        text = '\n'.join(p.text for p in doc.paragraphs)
+                        pdf_path = path.rsplit('.', 1)[0] + '.pdf'
+                        pdf = FPDF()
+                        pdf.set_auto_page_break(auto=True, margin=15)
+                        pdf.add_page()
+                        pdf.set_font('Arial', size=12)
+                        for line in text.split('\n'):
+                            pdf.multi_cell(0, 10, line)
+                        author = render_macros(request.form.get('pdf_author') or '')
+                        title = render_macros(request.form.get('pdf_title') or '')
+                        if title:
+                            pdf.set_title(title)
+                        if author:
+                            pdf.set_author(author)
+                        pdf.output(pdf_path)
+                        os.remove(path)
+                        filename = os.path.basename(pdf_path)
+                        path = pdf_path
+                    except Exception:
+                        pass
             attach = Attachment(display_name=display_name, filename=filename, path=path,
                                 inline=inline, upload_to_server=upload, config=cfg)
             db.session.add(attach)
