@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Макросы{% endblock %}
+{% block content %}
+<h2>Макросы</h2>
+<table class="table">
+<tr><th>Имя</th><th>Тип</th><th>Текущее значение</th><th>Действия</th></tr>
+{% for m in macros %}
+<tr>
+  <td>{{'{{$'+m.name+'}}'}}</td>
+  <td>{{m.macro_type}}</td>
+  <td>{{m.current_value}}</td>
+  <td><a class="btn btn-sm btn-danger" href="{{ url_for('delete_macro', macro_id=m.id) }}" onclick="return confirm('Удалить?');">Удалить</a></td>
+</tr>
+{% endfor %}
+</table>
+<h3>Добавить макрос</h3>
+<form method="post">
+ <div class="mb-3">
+   <label class="form-label">Имя</label>
+   <input class="form-control" name="name">
+ </div>
+ <div class="mb-3">
+   <label class="form-label">Тип</label>
+   <select name="macro_type" class="form-select" id="macro_type">
+     <option value="counter">Счётчик</option>
+     <option value="random">Рандом</option>
+   </select>
+ </div>
+ <div id="counter_fields">
+   <label>Начальное значение</label><input name="start" class="form-control">
+   <label>Шаг</label><input name="step" class="form-control">
+ </div>
+ <div id="random_fields" style="display:none;">
+   <label>Символы</label><input name="chars" class="form-control" value="abcdefghijklmnopqrstuvwxyz">
+   <label>Длина от</label><input name="min_len" class="form-control" value="5">
+   <label>Длина до</label><input name="max_len" class="form-control" value="10">
+ </div>
+ <div class="mb-3">
+   <label>Частота обновления (N)</label><input name="frequency" class="form-control" value="1">
+ </div>
+ <button class="btn btn-primary">Сохранить</button>
+</form>
+<script>
+const typeSelect = document.getElementById('macro_type');
+function updateFields() {
+  const t = typeSelect.value;
+  document.getElementById('counter_fields').style.display = t==='counter' ? '' : 'none';
+  document.getElementById('random_fields').style.display = t==='random' ? '' : 'none';
+}
+typeSelect.addEventListener('change', updateFields);
+updateFields();
+</script>
+{% endblock %}

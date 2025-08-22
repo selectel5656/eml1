@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Прокси{% endblock %}
+{% block content %}
+<h2>Прокси</h2>
+<table class="table"><tr><th>Адрес</th><th>Используется</th><th>Действия</th></tr>
+{% for p in proxies %}
+<tr>
+  <td>{{p.address}}</td>
+  <td>{{'+' if p.in_use else '-'}}</td>
+  <td><a class="btn btn-sm btn-danger" href="{{ url_for('delete_proxy', proxy_id=p.id) }}" onclick="return confirm('Удалить?');">Удалить</a></td>
+</tr>
+{% endfor %}
+</table>
+<h3>Загрузка</h3>
+<form method="post" enctype="multipart/form-data">
+<div class="mb-3">
+ <input type="file" class="form-control" name="file">
+</div>
+<button class="btn btn-primary">Загрузить</button>
+</form>
+{% endblock %}
