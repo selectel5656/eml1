@@ -10,8 +10,10 @@
  <td>{{a.filename}}</td>
  <td>
    {% if a.macro_base64 %}base64: {{'{{$'+a.macro_base64+'}}'}} {% endif %}
-   {% if a.macro_url %}url: {{'{{$'+a.macro_url+'}}'}}{% endif %}
-   {% if a.remote_url %}<br><small>uploaded: {{a.remote_url}}</small>{% endif %}
+   {% if a.macro_url %}url: {{'{{$'+a.macro_url+'}}'}} {% endif %}
+   {% if a.macro_id %}id: {{'{{$'+a.macro_id+'}}'}}{% endif %}
+   {% if a.remote_url %}<br><small>uploaded url: {{a.remote_url}}</small>{% endif %}
+   {% if a.remote_id %}<br><small>uploaded id: {{a.remote_id}}</small>{% endif %}
  </td>
  <td>
    <a class="btn btn-sm btn-danger" href="{{ url_for('delete_attachment', att_id=a.id) }}" onclick="return confirm('Удалить?');">Удалить</a>

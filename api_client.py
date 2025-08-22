@@ -104,15 +104,15 @@ class ApiClient:
         subject: str,
         body: str,
         recipients: List[str],
-        att_urls: List[str],
+        att_ids: List[str],
         operation_id: str,
         method: str = 'bcc',
         first_to: bool = False,
     ) -> bool:
         url = f'https://mail.{self.domain}/api/mobile/v1/send?app_state=foreground&uuid={self.uuid}'
         payload = {
-            'att_ids': att_urls,
-            'attachesCount': len(att_urls),
+            'att_ids': att_ids,
+            'attachesCount': len(att_ids),
             'send': body,
             'ttype': 'html',
             'subj': subject,

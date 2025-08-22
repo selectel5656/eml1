@@ -37,6 +37,7 @@ class Attachment(db.Model):
     inline = db.Column(db.Boolean, default=False)
     macro_base64 = db.Column(db.String(100))
     macro_url = db.Column(db.String(100))
+    macro_id = db.Column(db.String(100))
     remote_id = db.Column(db.String(500))
     remote_url = db.Column(db.String(500))
 

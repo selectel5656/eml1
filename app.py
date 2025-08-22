@@ -196,6 +196,8 @@ def render_macros(text: str) -> str:
         if a.macro_url:
             url = a.remote_url or url_for('uploaded_file', filename=a.filename, _external=True)
             text = text.replace(f'{{$' + a.macro_url + '}}', url)
+        if a.macro_id:
+            text = text.replace(f'{{$' + a.macro_id + '}}', a.remote_id or '')
         if a.macro_base64:
             with open(a.path, 'rb') as f:
                 b64 = base64.b64encode(f.read()).decode()
@@ -209,10 +211,9 @@ def letter():
     attachments = Attachment.query.all()
     macros = Macro.query.all()
     if request.method == 'POST':
-        subject = request.form.get('subject') or ''
-        body = request.form.get('body') or ''
+        subject_raw = request.form.get('subject') or ''
+        body_raw = request.form.get('body') or ''
         selected = request.form.getlist('attachments')
-        body_rendered = render_macros(body)
 
         limit = int(get_setting('per_account_limit', '1'))
         cycle = get_setting('cycle_accounts', 'no') == 'yes'
@@ -250,18 +251,20 @@ def letter():
             if not client.check_account():
                 continue
 
-            att_urls = []
+            att_ids = []
             for sid in selected:
                 att = Attachment.query.get(int(sid))
                 if att:
-                    if not att.remote_url:
+                    if not att.remote_id:
                         res = client.upload_attachment(att.path, att.filename)
                         att.remote_id = res.get('id')
                         att.remote_url = res.get('url')
                         db.session.commit()
-                    if att.remote_url:
-                        att_urls.append(att.remote_url)
+                    if att.remote_id:
+                        att_ids.append(att.remote_id)
 
+            subject = render_macros(subject_raw)
+            body = render_macros(body_raw)
             operation_id = client.generate_operation_id()
             recipients = [e.email for e in EmailEntry.query.limit(rec_count).all()]
             if not recipients:
@@ -270,9 +273,9 @@ def letter():
             for _ in range(attempts):
                 if client.send_mail(
                     subject,
-                    body_rendered,
+                    body,
                     recipients,
-                    att_urls,
+                    att_ids,
                     operation_id,
                     method=method,
                     first_to=first,
@@ -429,6 +432,7 @@ def attachments():
             db.session.add(attach)
             db.session.commit()
             attach.macro_url = f'url_attach_{attach.id}'
+            attach.macro_id = f'id_attach_{attach.id}'
             if inline and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
                 attach.macro_base64 = f'attach_img_{attach.id}_base64'
             db.session.commit()

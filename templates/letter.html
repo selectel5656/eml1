@@ -19,6 +19,7 @@
         <label class="form-check-label" for="att{{a.id}}">{{ a.display_name }} ({{ a.filename }})
           {% if a.macro_base64 %} макрос: {{'{{$'+a.macro_base64+'}}'}}{% endif %}
           {% if a.macro_url %} url: {{'{{$'+a.macro_url+'}}'}}{% endif %}
+          {% if a.macro_id %} id: {{'{{$'+a.macro_id+'}}'}}{% endif %}
         </label>
       </div><br>
     {% endfor %}
