@@ -37,6 +37,38 @@
  <input class="form-check-input" type="checkbox" name="upload_to_server" id="upload_to_server" checked>
  <label class="form-check-label" for="upload_to_server">Загружать на сервер</label>
 </div>
+<div class="form-check mb-3">
+ <input class="form-check-input" type="checkbox" name="randomize" id="randomize">
+ <label class="form-check-label" for="randomize">Рандомизация изображения</label>
+</div>
+<div class="row mb-3">
+ <div class="col">
+  <label>Слева от</label><input class="form-control" name="pad_left_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_left_max" value="0">
+ </div>
+ <div class="col">
+  <label>Справа от</label><input class="form-control" name="pad_right_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_right_max" value="0">
+ </div>
+</div>
+<div class="row mb-3">
+ <div class="col">
+  <label>Сверху от</label><input class="form-control" name="pad_top_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_top_max" value="0">
+ </div>
+ <div class="col">
+  <label>Снизу от</label><input class="form-control" name="pad_bottom_min" value="0">
+  <label class="mt-1">до</label><input class="form-control" name="pad_bottom_max" value="0">
+ </div>
+</div>
+<div class="row mb-3">
+ <div class="col">
+  <label>Точек мин</label><input class="form-control" name="dot_min" value="0">
+ </div>
+ <div class="col">
+  <label>Точек макс</label><input class="form-control" name="dot_max" value="0">
+ </div>
+</div>
 <button class="btn btn-primary">Загрузить</button>
 </form>
 {% endblock %}

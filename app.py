@@ -5,6 +5,7 @@ import string
 import time
 import requests
 import quopri
+from PIL import Image, ImageDraw
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, session, flash,
@@ -448,6 +449,29 @@ def delete_macro(macro_id):
 
 
 # ------- Attachments -------
+
+def randomize_image(path: str, cfg: dict) -> None:
+    img = Image.open(path).convert('RGB')
+    left = random.randint(*cfg.get('left', (0, 0)))
+    right = random.randint(*cfg.get('right', (0, 0)))
+    top = random.randint(*cfg.get('top', (0, 0)))
+    bottom = random.randint(*cfg.get('bottom', (0, 0)))
+    new_w = img.width + left + right
+    new_h = img.height + top + bottom
+    new_img = Image.new('RGB', (new_w, new_h), 'white')
+    new_img.paste(img, (left, top))
+    draw = ImageDraw.Draw(new_img)
+    colors = [
+        '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF',
+        '#FF00FF', '#C0C0C0', '#808080', '#800000', '#808000', '#008000', '#800080',
+        '#008080', '#000080'
+    ]
+    dot_min, dot_max = cfg.get('dots', (0, 0))
+    for _ in range(random.randint(dot_min, dot_max)):
+        x = random.randint(0, new_w - 1)
+        y = random.randint(0, new_h - 1)
+        draw.point((x, y), fill=random.choice(colors))
+    new_img.save(path)
 @app.route('/attachments', methods=['GET', 'POST'])
 @login_required
 def attachments():
@@ -456,12 +480,23 @@ def attachments():
         display_name = request.form.get('display_name') or (file.filename if file else '')
         inline = bool(request.form.get('inline'))
         upload = bool(request.form.get('upload_to_server'))
+        randomize = bool(request.form.get('randomize'))
         if file and file.filename:
             filename = secure_filename(file.filename)
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(path)
+            cfg = None
+            if randomize and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                cfg = {
+                    'left': [int(request.form.get('pad_left_min') or 0), int(request.form.get('pad_left_max') or 0)],
+                    'right': [int(request.form.get('pad_right_min') or 0), int(request.form.get('pad_right_max') or 0)],
+                    'top': [int(request.form.get('pad_top_min') or 0), int(request.form.get('pad_top_max') or 0)],
+                    'bottom': [int(request.form.get('pad_bottom_min') or 0), int(request.form.get('pad_bottom_max') or 0)],
+                    'dots': [int(request.form.get('dot_min') or 0), int(request.form.get('dot_max') or 0)],
+                }
+                randomize_image(path, cfg)
             attach = Attachment(display_name=display_name, filename=filename, path=path,
-                                inline=inline, upload_to_server=upload)
+                                inline=inline, upload_to_server=upload, config=cfg)
             db.session.add(attach)
             db.session.commit()
             attach.macro_url = f'url_attach_{attach.id}'

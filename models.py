@@ -41,6 +41,7 @@ class Attachment(db.Model):
     macro_id = db.Column(db.String(100))
     remote_id = db.Column(db.String(500))
     remote_url = db.Column(db.String(500))
+    config = db.Column(db.JSON)
 
 class Proxy(db.Model):
     id = db.Column(db.Integer, primary_key=True)
