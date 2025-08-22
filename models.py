@@ -61,6 +61,7 @@ class ApiAccount(db.Model):
     send_count = db.Column(db.Integer, default=0)
     proxy_id = db.Column(db.Integer, db.ForeignKey('proxy.id'))
     proxy = db.relationship('Proxy')
+    in_use = db.Column(db.Boolean, default=False)
 
 class Setting(db.Model):
     id = db.Column(db.Integer, primary_key=True)

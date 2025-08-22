@@ -62,6 +62,9 @@ def init_db():
         if not Setting.query.filter_by(key='total_sent').first():
             db.session.add(Setting(key='total_sent', value='0'))
         db.session.commit()
+        # ensure all API accounts are free on startup
+        ApiAccount.query.update({ApiAccount.in_use: False})
+        db.session.commit()
 
 
 init_db()
@@ -176,71 +179,81 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
     q_every = int(get_setting('quality_every', '0'))
     q_email = get_setting('quality_email', '')
 
-    account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
+    account = ApiAccount.query.filter(
+        ApiAccount.send_count < limit, ApiAccount.in_use.is_(False)
+    ).order_by(ApiAccount.id).first()
     if not account and cycle:
-        ApiAccount.query.update({ApiAccount.send_count: 0})
+        ApiAccount.query.update({ApiAccount.send_count: 0, ApiAccount.in_use: False})
         db.session.commit()
-        account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
+        account = ApiAccount.query.filter(
+            ApiAccount.send_count < limit, ApiAccount.in_use.is_(False)
+        ).order_by(ApiAccount.id).first()
     if not account:
         return False
+    account.in_use = True
+    db.session.commit()
 
     success = False
-    for _proxy_try in range(3):
-        proxy_addr = acquire_proxy_for_account(account)
-        client = ApiClient(
-            get_domain(),
-            account.api_key,
-            account.uuid,
-            login=account.login,
-            from_name=account.first_name or '',
-            user_agent=get_user_agent(),
-            proxy=proxy_addr,
-            timeout=timeout,
-        )
-        if not client.check_account():
-            release_proxy(account)
-            continue
-
-        att_ids: list[str] = []
-        for sid in selected:
-            att = Attachment.query.get(int(sid))
-            if att:
-                if (not att.inline) or att.upload_to_server:
-                    if not att.remote_id:
-                        res = client.upload_attachment(att.path, att.filename)
-                        att.remote_id = res.get('id')
-                        att.remote_url = res.get('url')
-                        db.session.commit()
-                    if att.remote_id:
-                        att_ids.append(att.remote_id)
-
-        subject = render_macros(subject_raw)
-        body = render_macros(body_raw)
-        emails = EmailEntry.query.filter_by(sent=False, in_progress=False).limit(rec_count).all()
-        if not emails:
-            return False
-        for e in emails:
-            e.in_progress = True
-        db.session.commit()
-        recipients = [e.email for e in emails]
-        for _ in range(attempts):
-            operation_id = client.generate_operation_id()
-            if not operation_id:
+    try:
+        for _proxy_try in range(3):
+            proxy_addr = acquire_proxy_for_account(account)
+            client = ApiClient(
+                get_domain(),
+                account.api_key,
+                account.uuid,
+                login=account.login,
+                from_name=account.first_name or '',
+                user_agent=get_user_agent(),
+                proxy=proxy_addr,
+                timeout=timeout,
+            )
+            if not client.check_account():
+                release_proxy(account)
                 continue
-            if client.send_mail(
-                subject,
-                body,
-                recipients,
-                att_ids,
-                operation_id,
-                method=method,
-                first_to=first,
-            ):
-                success = True
+
+            att_ids: list[str] = []
+            for sid in selected:
+                att = Attachment.query.get(int(sid))
+                if att:
+                    if (not att.inline) or att.upload_to_server:
+                        if not att.remote_id:
+                            res = client.upload_attachment(att.path, att.filename)
+                            att.remote_id = res.get('id')
+                            att.remote_url = res.get('url')
+                            db.session.commit()
+                        if att.remote_id:
+                            att_ids.append(att.remote_id)
+
+            subject = render_macros(subject_raw)
+            body = render_macros(body_raw)
+            emails = EmailEntry.query.filter_by(sent=False, in_progress=False).limit(rec_count).all()
+            if not emails:
+                return False
+            for e in emails:
+                e.in_progress = True
+            db.session.commit()
+            recipients = [e.email for e in emails]
+            for _ in range(attempts):
+                operation_id = client.generate_operation_id()
+                if not operation_id:
+                    continue
+                if client.send_mail(
+                    subject,
+                    body,
+                    recipients,
+                    att_ids,
+                    operation_id,
+                    method=method,
+                    first_to=first,
+                ):
+                    success = True
+                    break
+            if success:
                 break
-        if success:
-            break
-        release_proxy(account)
+            release_proxy(account)
+    finally:
+        account.in_use = False
+        db.session.commit()
 
     if success:
         account.send_count = account.send_count + 1
@@ -911,7 +924,7 @@ def delete_api_account(acc_id):
 @app.route('/api_accounts/reset_counts')
 @login_required
 def reset_counts():
-    ApiAccount.query.update({ApiAccount.send_count: 0})
+    ApiAccount.query.update({ApiAccount.send_count: 0, ApiAccount.in_use: False})
     db.session.commit()
     flash('Счетчики сброшены')
     return redirect(url_for('api_accounts'))
