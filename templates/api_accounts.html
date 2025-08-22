@@ -3,13 +3,14 @@
 {% block content %}
 <h2>Аккаунты API</h2>
 <table class="table">
-<tr><th>Логин</th><th>Имя</th><th>Фамилия</th><th>UUID</th><th>Отправлено</th><th>Действия</th></tr>
+<tr><th>Логин</th><th>Имя</th><th>Фамилия</th><th>UUID</th><th>Прокси</th><th>Отправлено</th><th>Действия</th></tr>
 {% for a in accounts %}
 <tr>
   <td>{{a.login}}</td>
   <td>{{a.first_name}}</td>
   <td>{{a.last_name}}</td>
   <td>{{a.uuid}}</td>
+  <td>{{a.proxy.address if a.proxy else ''}}</td>
   <td>{{a.send_count}}</td>
   <td><a class="btn btn-sm btn-danger" href="{{ url_for('delete_api_account', acc_id=a.id) }}" onclick="return confirm('Удалить?');">Удалить</a></td>
 </tr>

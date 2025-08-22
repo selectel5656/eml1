@@ -35,6 +35,7 @@ class Attachment(db.Model):
     filename = db.Column(db.String(200))
     path = db.Column(db.String(500))
     inline = db.Column(db.Boolean, default=False)
+    upload_to_server = db.Column(db.Boolean, default=True)
     macro_base64 = db.Column(db.String(100))
     macro_url = db.Column(db.String(100))
     macro_id = db.Column(db.String(100))
@@ -55,6 +56,8 @@ class ApiAccount(db.Model):
     api_key = db.Column(db.String(500))
     uuid = db.Column(db.String(200))
     send_count = db.Column(db.Integer, default=0)
+    proxy_id = db.Column(db.Integer, db.ForeignKey('proxy.id'))
+    proxy = db.relationship('Proxy')
 
 class Setting(db.Model):
     id = db.Column(db.Integer, primary_key=True)

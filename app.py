@@ -130,6 +130,30 @@ def acquire_proxy() -> str | None:
     db.session.commit()
     return None
 
+
+def release_proxy(account: ApiAccount) -> None:
+    if account.proxy_id:
+        proxy = Proxy.query.get(account.proxy_id)
+        if proxy:
+            proxy.in_use = False
+        account.proxy_id = None
+        db.session.commit()
+
+
+def acquire_proxy_for_account(account: ApiAccount) -> str | None:
+    if account.proxy_id:
+        proxy = Proxy.query.get(account.proxy_id)
+        if proxy and check_proxy(proxy.address):
+            return proxy.address
+        release_proxy(account)
+    addr = acquire_proxy()
+    if addr:
+        proxy = Proxy.query.filter_by(address=addr).first()
+        if proxy:
+            account.proxy_id = proxy.id
+            db.session.commit()
+    return addr
+
 def evaluate_macro(m: Macro) -> str:
     """Evaluate macro value and update usage counters."""
     if m.frequency > 1 and m.usage_count and m.usage_count % m.frequency != 0 and m.current_value:
@@ -237,7 +261,7 @@ def letter():
 
         success = False
         for _proxy_try in range(3):
-            proxy_addr = acquire_proxy()
+            proxy_addr = acquire_proxy_for_account(account)
             client = ApiClient(
                 get_domain(),
                 account.api_key,
@@ -249,19 +273,21 @@ def letter():
                 timeout=timeout,
             )
             if not client.check_account():
+                release_proxy(account)
                 continue
 
             att_ids = []
             for sid in selected:
                 att = Attachment.query.get(int(sid))
                 if att:
-                    if not att.remote_id:
-                        res = client.upload_attachment(att.path, att.filename)
-                        att.remote_id = res.get('id')
-                        att.remote_url = res.get('url')
-                        db.session.commit()
-                    if att.remote_id:
-                        att_ids.append(att.remote_id)
+                    if (not att.inline) or att.upload_to_server:
+                        if not att.remote_id:
+                            res = client.upload_attachment(att.path, att.filename)
+                            att.remote_id = res.get('id')
+                            att.remote_url = res.get('url')
+                            db.session.commit()
+                        if att.remote_id:
+                            att_ids.append(att.remote_id)
 
             subject = render_macros(subject_raw)
             body = render_macros(body_raw)
@@ -286,6 +312,7 @@ def letter():
                     break
             if success:
                 break
+            release_proxy(account)
         if success:
             account.send_count = account.send_count + 1
             total_sent = int(get_setting('total_sent', '0')) + 1
@@ -428,11 +455,13 @@ def attachments():
         file = request.files.get('file')
         display_name = request.form.get('display_name') or (file.filename if file else '')
         inline = bool(request.form.get('inline'))
+        upload = bool(request.form.get('upload_to_server'))
         if file and file.filename:
             filename = secure_filename(file.filename)
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(path)
-            attach = Attachment(display_name=display_name, filename=filename, path=path, inline=inline)
+            attach = Attachment(display_name=display_name, filename=filename, path=path,
+                                inline=inline, upload_to_server=upload)
             db.session.add(attach)
             db.session.commit()
             attach.macro_url = f'url_attach_{attach.id}'
