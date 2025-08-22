@@ -394,6 +394,19 @@ def evaluate_macro(m: Macro) -> str:
                 value = '\n\n'.join(paragraphs)
                 if as_html and extra:
                     value += extra
+                if as_html:
+                    min_kb = float(cfg.get('html_min_kb', 0))
+                    max_kb = float(cfg.get('html_max_kb', 0))
+                    size = len(value.encode('utf-8'))
+                    if max_kb:
+                        max_bytes = int(max_kb * 1024)
+                        if size > max_bytes:
+                            value = value.encode('utf-8')[:max_bytes].decode('utf-8', 'ignore')
+                            size = len(value.encode('utf-8'))
+                    if min_kb:
+                        min_bytes = int(min_kb * 1024)
+                        if size < min_bytes:
+                            value += ' ' * (min_bytes - size)
             else:
                 if mode == 'sequential':
                     idx = int(cfg.get('index', 0))
@@ -475,6 +488,19 @@ def preview_macro_value(macro_type: str, cfg: dict) -> str:
             value = '\n\n'.join(paragraphs)
             if as_html and extra:
                 value += extra
+            if as_html:
+                min_kb = float(cfg.get('html_min_kb', 0))
+                max_kb = float(cfg.get('html_max_kb', 0))
+                size = len(value.encode('utf-8'))
+                if max_kb:
+                    max_bytes = int(max_kb * 1024)
+                    if size > max_bytes:
+                        value = value.encode('utf-8')[:max_bytes].decode('utf-8', 'ignore')
+                        size = len(value.encode('utf-8'))
+                if min_kb:
+                    min_bytes = int(min_kb * 1024)
+                    if size < min_bytes:
+                        value += ' ' * (min_bytes - size)
             return value
         if mode == 'sequential':
             idx = int(cfg.get('index', 0))
@@ -661,6 +687,8 @@ def macros():
                     'para_max': int(request.form.get('para_max') or 1),
                     'as_html': bool(request.form.get('as_html')),
                     'html_extra': request.form.get('html_extra') or '',
+                    'html_min_kb': float(request.form.get('html_min_kb') or 0),
+                    'html_max_kb': float(request.form.get('html_max_kb') or 0),
                 })
         elif macro_type == 'multi':
             cfg = {
@@ -721,6 +749,8 @@ def macro_test():
                 'para_max': int(request.form.get('para_max') or 1),
                 'as_html': bool(request.form.get('as_html')),
                 'html_extra': request.form.get('html_extra') or '',
+                'html_min_kb': float(request.form.get('html_min_kb') or 0),
+                'html_max_kb': float(request.form.get('html_max_kb') or 0),
             })
     elif macro_type == 'multi':
         cfg = {

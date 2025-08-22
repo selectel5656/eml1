@@ -30,5 +30,6 @@
   </div>
   <button class="btn btn-primary" name="action" value="start">Старт</button>
   <button class="btn btn-danger" name="action" value="stop">Стоп</button>
+  <a class="btn btn-secondary" href="{{ url_for('reset_counts') }}">Скинуть счетчики отправок</a>
 </form>
 {% endblock %}
