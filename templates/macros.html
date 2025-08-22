@@ -14,7 +14,7 @@
 {% endfor %}
 </table>
 <h3>Добавить макрос</h3>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
  <div class="mb-3">
    <label class="form-label">Имя</label>
    <input class="form-control" name="name">
@@ -23,18 +23,33 @@
    <label class="form-label">Тип</label>
    <select name="macro_type" class="form-select" id="macro_type">
      <option value="counter">Счётчик</option>
-     <option value="random">Рандом</option>
+    <option value="random">Рандом</option>
+    <option value="list">Список</option>
    </select>
  </div>
  <div id="counter_fields">
    <label>Начальное значение</label><input name="start" class="form-control">
    <label>Шаг</label><input name="step" class="form-control">
  </div>
- <div id="random_fields" style="display:none;">
+<div id="random_fields" style="display:none;">
    <label>Символы</label><input name="chars" class="form-control" value="abcdefghijklmnopqrstuvwxyz">
    <label>Длина от</label><input name="min_len" class="form-control" value="5">
    <label>Длина до</label><input name="max_len" class="form-control" value="10">
- </div>
+</div>
+<div id="list_fields" style="display:none;">
+  <label>Файл списка</label><input type="file" name="file" class="form-control">
+  <label>Что брать</label>
+  <select name="source" class="form-select">
+    <option value="lines">Строки</option>
+    <option value="words">Слова</option>
+    <option value="sentences">Предложения</option>
+  </select>
+  <label>Как брать</label>
+  <select name="mode" class="form-select">
+    <option value="random">Рандомно</option>
+    <option value="sequential">Последовательно</option>
+  </select>
+</div>
  <div class="mb-3">
    <label>Частота обновления (N)</label><input name="frequency" class="form-control" value="1">
  </div>
@@ -46,6 +61,7 @@ function updateFields() {
   const t = typeSelect.value;
   document.getElementById('counter_fields').style.display = t==='counter' ? '' : 'none';
   document.getElementById('random_fields').style.display = t==='random' ? '' : 'none';
+  document.getElementById('list_fields').style.display = t==='list' ? '' : 'none';
 }
 typeSelect.addEventListener('change', updateFields);
 updateFields();

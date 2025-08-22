@@ -150,6 +150,18 @@ def evaluate_macro(m: Macro) -> str:
         max_len = int(cfg.get('max_len', 10))
         n = random.randint(min_len, max_len)
         value = ''.join(random.choice(chars) for _ in range(n))
+    elif m.macro_type == 'list':
+        items = cfg.get('items', [])
+        if items:
+            mode = cfg.get('mode', 'random')
+            if mode == 'sequential':
+                idx = int(cfg.get('index', 0))
+                value = items[idx % len(items)]
+                cfg['index'] = idx + 1
+            else:
+                value = random.choice(items)
+        else:
+            value = ''
     else:
         value = cfg.get('value', '')
     m.current_value = value
@@ -344,6 +356,23 @@ def macros():
                 'chars': request.form.get('chars') or string.ascii_letters,
                 'min_len': int(request.form.get('min_len') or 5),
                 'max_len': int(request.form.get('max_len') or 10)
+            }
+        elif macro_type == 'list':
+            uploaded = request.files.get('file')
+            items = []
+            if uploaded:
+                text = uploaded.read().decode('utf-8')
+                src = request.form.get('source') or 'lines'
+                if src == 'words':
+                    items = re.findall(r'\w+', text)
+                elif src == 'sentences':
+                    items = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
+                else:
+                    items = [line.strip() for line in text.splitlines() if line.strip()]
+            cfg = {
+                'items': items,
+                'mode': request.form.get('mode') or 'random',
+                'index': 0,
             }
         if name:
             db.session.add(Macro(name=name, macro_type=macro_type, config=cfg, frequency=frequency))
