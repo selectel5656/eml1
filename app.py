@@ -4,6 +4,7 @@ import random
 import string
 import time
 import requests
+import quopri
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, session, flash,
@@ -162,6 +163,19 @@ def evaluate_macro(m: Macro) -> str:
                 value = random.choice(items)
         else:
             value = ''
+    elif m.macro_type == 'multi':
+        expr = cfg.get('expr', '')
+        encoding = cfg.get('encoding', 'none')
+        value = expr
+        for other in Macro.query.all():
+            if other.id == m.id:
+                continue
+            val = evaluate_macro(other)
+            value = value.replace(f'{{$' + other.name + '}}', val)
+        if encoding == 'base64':
+            value = base64.b64encode(value.encode()).decode()
+        elif encoding == 'quoted-printable':
+            value = quopri.encodestring(value.encode()).decode()
     else:
         value = cfg.get('value', '')
     m.current_value = value
@@ -220,50 +234,52 @@ def letter():
             flash('Нет доступных API аккаунтов')
             return render_template('letter.html', attachments=attachments, macros=macros)
 
-        proxy_addr = acquire_proxy()
-        client = ApiClient(
-            get_domain(),
-            account.api_key,
-            account.uuid,
-            login=account.login,
-            from_name=account.first_name or '',
-            user_agent=get_user_agent(),
-            proxy=proxy_addr,
-            timeout=timeout,
-        )
-        if not client.check_account():
-            flash('Аккаунт недоступен')
-            return render_template('letter.html', attachments=attachments, macros=macros)
-
-        att_urls = []
-        for sid in selected:
-            att = Attachment.query.get(int(sid))
-            if att:
-                if not att.remote_url:
-                    res = client.upload_attachment(att.path, att.filename)
-                    att.remote_id = res.get('id')
-                    att.remote_url = res.get('url')
-                    db.session.commit()
-                if att.remote_url:
-                    att_urls.append(att.remote_url)
-
-        operation_id = client.generate_operation_id()
-        recipients = [e.email for e in EmailEntry.query.limit(rec_count).all()]
-        if not recipients:
-            flash('Нет получателей')
-            return render_template('letter.html', attachments=attachments, macros=macros)
         success = False
-        for _ in range(attempts):
-            if client.send_mail(
-                subject,
-                body_rendered,
-                recipients,
-                att_urls,
-                operation_id,
-                method=method,
-                first_to=first,
-            ):
-                success = True
+        for _proxy_try in range(3):
+            proxy_addr = acquire_proxy()
+            client = ApiClient(
+                get_domain(),
+                account.api_key,
+                account.uuid,
+                login=account.login,
+                from_name=account.first_name or '',
+                user_agent=get_user_agent(),
+                proxy=proxy_addr,
+                timeout=timeout,
+            )
+            if not client.check_account():
+                continue
+
+            att_urls = []
+            for sid in selected:
+                att = Attachment.query.get(int(sid))
+                if att:
+                    if not att.remote_url:
+                        res = client.upload_attachment(att.path, att.filename)
+                        att.remote_id = res.get('id')
+                        att.remote_url = res.get('url')
+                        db.session.commit()
+                    if att.remote_url:
+                        att_urls.append(att.remote_url)
+
+            operation_id = client.generate_operation_id()
+            recipients = [e.email for e in EmailEntry.query.limit(rec_count).all()]
+            if not recipients:
+                flash('Нет получателей')
+                return render_template('letter.html', attachments=attachments, macros=macros)
+            for _ in range(attempts):
+                if client.send_mail(
+                    subject,
+                    body_rendered,
+                    recipients,
+                    att_urls,
+                    operation_id,
+                    method=method,
+                    first_to=first,
+                ):
+                    success = True
+                    break
+            if success:
                 break
         if success:
             account.send_count = account.send_count + 1
@@ -373,6 +389,11 @@ def macros():
                 'items': items,
                 'mode': request.form.get('mode') or 'random',
                 'index': 0,
+            }
+        elif macro_type == 'multi':
+            cfg = {
+                'expr': request.form.get('expression') or '',
+                'encoding': request.form.get('encoding') or 'none',
             }
         if name:
             db.session.add(Macro(name=name, macro_type=macro_type, config=cfg, frequency=frequency))

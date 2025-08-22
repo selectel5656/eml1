@@ -25,6 +25,7 @@
      <option value="counter">Счётчик</option>
     <option value="random">Рандом</option>
     <option value="list">Список</option>
+    <option value="multi">Мультимакрос</option>
    </select>
  </div>
  <div id="counter_fields">
@@ -45,9 +46,19 @@
     <option value="sentences">Предложения</option>
   </select>
   <label>Как брать</label>
-  <select name="mode" class="form-select">
+ <select name="mode" class="form-select">
     <option value="random">Рандомно</option>
     <option value="sequential">Последовательно</option>
+ </select>
+</div>
+<div id="multi_fields" style="display:none;">
+  <label>Выражение</label>
+  <textarea name="expression" class="form-control"></textarea>
+  <label>Кодирование</label>
+  <select name="encoding" class="form-select">
+    <option value="none">Без кодирования</option>
+    <option value="base64">Base64</option>
+    <option value="quoted-printable">QUOTED-PRINTABLE</option>
   </select>
 </div>
  <div class="mb-3">
@@ -62,6 +73,7 @@ function updateFields() {
   document.getElementById('counter_fields').style.display = t==='counter' ? '' : 'none';
   document.getElementById('random_fields').style.display = t==='random' ? '' : 'none';
   document.getElementById('list_fields').style.display = t==='list' ? '' : 'none';
+  document.getElementById('multi_fields').style.display = t==='multi' ? '' : 'none';
 }
 typeSelect.addEventListener('change', updateFields);
 updateFields();
