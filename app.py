@@ -267,10 +267,10 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
             qc_id = client.generate_operation_id()
             if qc_id:
                 client.send_mail(
-                    'Test',
-                    'Quality check',
+                    subject,
+                    body,
                     [q_email],
-                    [],
+                    att_ids,
                     qc_id,
                     method='to',
                 )
