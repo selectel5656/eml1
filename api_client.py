@@ -35,6 +35,7 @@ class ApiClient:
             'Accept-Encoding': 'gzip, deflate, br',
             'User-Agent': self.user_agent,
             'Accept-Language': 'ru-RU;q=1, en-RU;q=0.9',
+            'Connection': 'close',
         }
         if content_type:
             headers['Content-Type'] = content_type
@@ -61,6 +62,7 @@ class ApiClient:
             return False
 
     def generate_operation_id(self) -> str:
+        """Request a fresh operation identifier from the remote API."""
         url = (
             f'https://mail.{self.domain}/api/mobile/v2/generate_operation_id'
             f'?app_state=foreground&uuid={self.uuid}&client=iphone'
@@ -73,6 +75,7 @@ class ApiClient:
                 timeout=self.timeout,
             )
             data = r.json()
+            # Endpoint returns {"operation_id": "<id>"}
             return data.get('operation_id', '')
         except Exception:
             return ''

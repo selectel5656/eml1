@@ -265,12 +265,14 @@ def letter():
 
             subject = render_macros(subject_raw)
             body = render_macros(body_raw)
-            operation_id = client.generate_operation_id()
             recipients = [e.email for e in EmailEntry.query.limit(rec_count).all()]
             if not recipients:
                 flash('Нет получателей')
                 return render_template('letter.html', attachments=attachments, macros=macros)
             for _ in range(attempts):
+                operation_id = client.generate_operation_id()
+                if not operation_id:
+                    continue
                 if client.send_mail(
                     subject,
                     body,
@@ -290,14 +292,16 @@ def letter():
             Setting.query.filter_by(key='total_sent').first().value = str(total_sent)
             db.session.commit()
             if q_every and q_email and total_sent % q_every == 0:
-                client.send_mail(
-                    'Test',
-                    'Quality check',
-                    [q_email],
-                    [],
-                    client.generate_operation_id(),
-                    method='to',
-                )
+                qc_id = client.generate_operation_id()
+                if qc_id:
+                    client.send_mail(
+                        'Test',
+                        'Quality check',
+                        [q_email],
+                        [],
+                        qc_id,
+                        method='to',
+                    )
             flash('Письмо отправлено через API')
             if pause > 0:
                 time.sleep(pause)
