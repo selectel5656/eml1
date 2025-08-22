@@ -562,17 +562,25 @@ def email_base():
         if file:
             lines = file.read().decode('utf-8').splitlines()
             for line in lines:
-                line = line.strip().strip(';')
-                if not line:
+                raw = line.strip()
+                if not raw:
                     continue
                 name = ''
                 email = ''
-                m = re.match(r'(.*)<([^>]+)>', line)
-                if m:
-                    name = m.group(1).strip().strip('"')
+                if fmt in ('1', '2'):
+                    if fmt == '2':
+                        raw = raw.rstrip(';')
+                    m = re.match(r'^\s*(?:"?([^"<]*)"?\s*)?<([^>]+)>\s*$', raw)
+                    if not m:
+                        continue
+                    name = (m.group(1) or '').strip()
                     email = m.group(2).strip()
+                elif fmt == '3':
+                    email = raw
+                    if not re.match(r'^[^@\s]+@[^@\s]+$', email):
+                        continue
                 else:
-                    email = line
+                    continue
                 if not name:
                     name = email.split('@')[0]
                 if not EmailEntry.query.filter_by(email=email).first():
