@@ -17,7 +17,12 @@ from models import db, User, EmailEntry, Macro, Attachment, Proxy, ApiAccount, S
 from api_client import ApiClient
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+
+# Use MySQL by default; allow override via DATABASE_URL environment variable.
+# Falls back to SQLite only if initialization fails (e.g., no MySQL server available).
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL', 'mysql+pymysql://user:password@localhost/eml'
+)
 app.config['SECRET_KEY'] = 'dev'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'uploads')
 
@@ -27,8 +32,15 @@ db.init_app(app)
 
 
 def init_db():
+    """Initialize database and seed default settings."""
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception:
+            # Fallback to SQLite if MySQL is unreachable
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+            db.init_app(app)
+            db.create_all()
         if not User.query.filter_by(username='admin').first():
             u = User(username='admin')
             u.set_password('admin')
@@ -217,7 +229,8 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
                 if att:
                     if (not att.inline) or att.upload_to_server:
                         if not att.remote_id:
-                            res = client.upload_attachment(att.path, att.filename)
+                            send_name = att.send_filename or att.filename
+                            res = client.upload_attachment(att.path, send_name)
                             att.remote_id = res.get('id')
                             att.remote_url = res.get('url')
                             db.session.commit()
@@ -716,12 +729,20 @@ def randomize_image(path: str, cfg: dict) -> None:
         y = random.randint(0, new_h - 1)
         draw.point((x, y), fill=random.choice(colors))
     new_img.save(path)
+
+
+def random_attach_name() -> str:
+    """Generate unique randomized filename base."""
+    part1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=random.randint(8, 16)))
+    part2 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=random.randint(8, 16)))
+    return f"{part1}_{part2}"
 @app.route('/attachments', methods=['GET', 'POST'])
 @login_required
 def attachments():
     if request.method == 'POST':
         file = request.files.get('file')
         display_name = request.form.get('display_name') or (file.filename if file else '')
+        send_name = request.form.get('send_filename') or '{{$const_attach_1_name_file}}'
         inline = bool(request.form.get('inline'))
         upload = bool(request.form.get('upload_to_server'))
         randomize = bool(request.form.get('randomize'))
@@ -729,6 +750,13 @@ def attachments():
             filename = secure_filename(file.filename)
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(path)
+            ext = os.path.splitext(filename)[1]
+            if '{{$const_attach_1_name_file}}' in send_name:
+                send_name = random_attach_name() + ext
+            else:
+                send_name = secure_filename(send_name)
+                if not os.path.splitext(send_name)[1]:
+                    send_name += ext
             cfg = None
             if randomize and filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
                 cfg = {
@@ -780,8 +808,8 @@ def attachments():
                         path = pdf_path
                     except Exception:
                         pass
-            attach = Attachment(display_name=display_name, filename=filename, path=path,
-                                inline=inline, upload_to_server=upload, config=cfg)
+            attach = Attachment(display_name=display_name, filename=filename, send_filename=send_name,
+                                path=path, inline=inline, upload_to_server=upload, config=cfg)
             db.session.add(attach)
             db.session.commit()
             attach.macro_url = f'url_attach_{attach.id}'

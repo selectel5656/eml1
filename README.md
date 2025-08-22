@@ -11,12 +11,14 @@ User-Agent для запросов указывается на вкладке «
 ### Ubuntu
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip
+sudo apt install -y python3 python3-venv python3-pip mysql-server
+mysql -u root -e "CREATE DATABASE eml CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 git clone <URL_репозитория> eml_panel
 cd eml_panel
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt  # либо установить Flask и др. пакеты вручную
+pip install -r requirements.txt
+export DATABASE_URL="mysql+pymysql://root:@localhost/eml"
 python app.py
 ```
 Панель будет доступна по адресу `http://<IP>:5000`.
@@ -28,6 +30,8 @@ cd eml_panel
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+# Предполагается установленный MySQL и создана база eml
+set DATABASE_URL=mysql+pymysql://root:@localhost/eml
 python app.py
 ```
 Затем откройте `http://localhost:5000` в браузере.

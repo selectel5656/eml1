@@ -3,11 +3,11 @@
 {% block content %}
 <h2>Аттачи</h2>
 <table class="table">
-<tr><th>Имя</th><th>Файл</th><th>Макросы</th><th>Действия</th></tr>
+<tr><th>Имя</th><th>Имя для отправки</th><th>Макросы</th><th>Действия</th></tr>
 {% for a in attachments %}
 <tr>
  <td>{{a.display_name}}</td>
- <td>{{a.filename}}</td>
+ <td>{{a.send_filename or a.filename}}</td>
  <td>
    {% if a.macro_base64 %}base64: {{'{{$'+a.macro_base64+'}}'}} {% endif %}
    {% if a.macro_url %}url: {{'{{$'+a.macro_url+'}}'}} {% endif %}
@@ -28,6 +28,10 @@
 <form method="post" enctype="multipart/form-data">
 <div class="mb-3">
  <label>Имя</label><input class="form-control" name="display_name">
+</div>
+<div class="mb-3">
+ <label>Имя файла для отправки</label>
+ <input class="form-control" name="send_filename" value="{{'{{$const_attach_1_name_file}}'}}">
 </div>
 <div class="mb-3">
  <label>Файл</label><input type="file" class="form-control" name="file">

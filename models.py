@@ -34,7 +34,8 @@ class Macro(db.Model):
 class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     display_name = db.Column(db.String(200))
-    filename = db.Column(db.String(200))
+    filename = db.Column(db.String(200))  # stored filename on disk
+    send_filename = db.Column(db.String(200))  # filename used when sending
     path = db.Column(db.String(500))
     inline = db.Column(db.Boolean, default=False)
     upload_to_server = db.Column(db.Boolean, default=True)

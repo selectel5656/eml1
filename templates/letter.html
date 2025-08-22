@@ -16,7 +16,7 @@
     {% for a in attachments %}
       <div class="form-check form-check-inline">
         <input class="form-check-input" type="checkbox" name="attachments" value="{{ a.id }}" id="att{{a.id}}">
-        <label class="form-check-label" for="att{{a.id}}">{{ a.display_name }} ({{ a.filename }})
+        <label class="form-check-label" for="att{{a.id}}">{{ a.display_name }} ({{ a.send_filename or a.filename }})
           {% if a.macro_base64 %} макрос: {{'{{$'+a.macro_base64+'}}'}}{% endif %}
           {% if a.macro_url %} url: {{'{{$'+a.macro_url+'}}'}}{% endif %}
           {% if a.macro_id %} id: {{'{{$'+a.macro_id+'}}'}}{% endif %}
