@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}API правила{% endblock %}
+{% block content %}
+<h2>API правила</h2>
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Количество писем на аккаунт</label>
+    <input type="number" class="form-control" name="per_account_limit" value="{{ limit }}">
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="cycle_accounts" id="cycle" {% if cycle %}checked{% endif %}>
+    <label class="form-check-label" for="cycle">Гонять аккаунты по кругу</label>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Количество попыток отправки</label>
+    <input type="number" class="form-control" name="send_attempts" value="{{ attempts }}">
+  </div>
+  <button class="btn btn-primary">Сохранить</button>
+</form>
+{% endblock %}

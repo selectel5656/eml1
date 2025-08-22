@@ -53,6 +53,7 @@ class ApiAccount(db.Model):
     last_name = db.Column(db.String(200))
     api_key = db.Column(db.String(500))
     uuid = db.Column(db.String(200))
+    send_count = db.Column(db.Integer, default=0)
 
 class Setting(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -33,6 +33,12 @@ def init_db():
             db.session.add(Setting(key='domain', value='domen.ru'))
         if not Setting.query.filter_by(key='user_agent').first():
             db.session.add(Setting(key='user_agent', value=ApiClient.USER_AGENT))
+        if not Setting.query.filter_by(key='per_account_limit').first():
+            db.session.add(Setting(key='per_account_limit', value='1'))
+        if not Setting.query.filter_by(key='cycle_accounts').first():
+            db.session.add(Setting(key='cycle_accounts', value='no'))
+        if not Setting.query.filter_by(key='send_attempts').first():
+            db.session.add(Setting(key='send_attempts', value='1'))
         db.session.commit()
 
 
@@ -74,14 +80,17 @@ def index():
 # ------- Letter -------
 
 
+def get_setting(key: str, default: str = '') -> str:
+    setting = Setting.query.filter_by(key=key).first()
+    return setting.value if setting else default
+
+
 def get_domain() -> str:
-    setting = Setting.query.filter_by(key='domain').first()
-    return setting.value if setting else 'domen.ru'
+    return get_setting('domain', 'domen.ru')
 
 
 def get_user_agent() -> str:
-    setting = Setting.query.filter_by(key='user_agent').first()
-    return setting.value if setting else ApiClient.USER_AGENT
+    return get_setting('user_agent', ApiClient.USER_AGENT)
 
 
 def check_proxy(address: str) -> bool:
@@ -162,9 +171,17 @@ def letter():
         selected = request.form.getlist('attachments')
         body_rendered = render_macros(body)
 
-        account = ApiAccount.query.first()
+        limit = int(get_setting('per_account_limit', '1'))
+        cycle = get_setting('cycle_accounts', 'no') == 'yes'
+        attempts = int(get_setting('send_attempts', '1'))
+
+        account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
+        if not account and cycle:
+            ApiAccount.query.update({ApiAccount.send_count: 0})
+            db.session.commit()
+            account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
         if not account:
-            flash('Нет API аккаунтов')
+            flash('Нет доступных API аккаунтов')
             return render_template('letter.html', attachments=attachments, macros=macros)
 
         proxy_addr = acquire_proxy()
@@ -195,7 +212,14 @@ def letter():
 
         operation_id = client.generate_operation_id()
         recipients = [e.email for e in EmailEntry.query.limit(1).all()]
-        if client.send_mail(subject, body_rendered, recipients, att_urls, operation_id):
+        success = False
+        for _ in range(attempts):
+            if client.send_mail(subject, body_rendered, recipients, att_urls, operation_id):
+                success = True
+                break
+        if success:
+            account.send_count = account.send_count + 1
+            db.session.commit()
             flash('Письмо отправлено через API')
         else:
             flash('Ошибка отправки письма')
@@ -294,6 +318,25 @@ def attachments():
     return render_template('attachments.html', attachments=attachments)
 
 
+# ------- API Rules -------
+@app.route('/api_rules', methods=['GET', 'POST'])
+@login_required
+def api_rules():
+    limit = get_setting('per_account_limit', '1')
+    cycle = get_setting('cycle_accounts', 'no')
+    attempts = get_setting('send_attempts', '1')
+    if request.method == 'POST':
+        limit = request.form.get('per_account_limit') or '1'
+        cycle = 'yes' if request.form.get('cycle_accounts') else 'no'
+        attempts = request.form.get('send_attempts') or '1'
+        Setting.query.filter_by(key='per_account_limit').first().value = limit
+        Setting.query.filter_by(key='cycle_accounts').first().value = cycle
+        Setting.query.filter_by(key='send_attempts').first().value = attempts
+        db.session.commit()
+        flash('Правила сохранены')
+    return render_template('api_rules.html', limit=limit, cycle=cycle == 'yes', attempts=attempts)
+
+
 # ------- Proxies -------
 @app.route('/proxies', methods=['GET', 'POST'])
 @login_required
@@ -332,6 +375,15 @@ def api_accounts():
             flash('Аккаунты загружены')
     accounts = ApiAccount.query.all()
     return render_template('api_accounts.html', accounts=accounts)
+
+
+@app.route('/api_accounts/reset_counts')
+@login_required
+def reset_counts():
+    ApiAccount.query.update({ApiAccount.send_count: 0})
+    db.session.commit()
+    flash('Счетчики сброшены')
+    return redirect(url_for('api_accounts'))
 
 
 # ------- Settings -------
