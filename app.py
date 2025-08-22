@@ -2,6 +2,7 @@ import os
 import base64
 import random
 import string
+import requests
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, session, flash,
@@ -30,6 +31,8 @@ def init_db():
             db.session.add(u)
         if not Setting.query.filter_by(key='domain').first():
             db.session.add(Setting(key='domain', value='domen.ru'))
+        if not Setting.query.filter_by(key='user_agent').first():
+            db.session.add(Setting(key='user_agent', value=ApiClient.USER_AGENT))
         db.session.commit()
 
 
@@ -74,6 +77,31 @@ def index():
 def get_domain() -> str:
     setting = Setting.query.filter_by(key='domain').first()
     return setting.value if setting else 'domen.ru'
+
+
+def get_user_agent() -> str:
+    setting = Setting.query.filter_by(key='user_agent').first()
+    return setting.value if setting else ApiClient.USER_AGENT
+
+
+def check_proxy(address: str) -> bool:
+    try:
+        proxies = {'http': f'http://{address}', 'https': f'http://{address}'}
+        r = requests.get('https://httpbin.org/ip', proxies=proxies, timeout=5)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def acquire_proxy() -> str | None:
+    for proxy in Proxy.query.filter_by(in_use=False).all():
+        if check_proxy(proxy.address):
+            proxy.in_use = True
+            db.session.commit()
+            return proxy.address
+    Proxy.query.update({Proxy.in_use: False})
+    db.session.commit()
+    return None
 
 def evaluate_macro(m: Macro) -> str:
     """Evaluate macro value and update usage counters."""
@@ -139,7 +167,16 @@ def letter():
             flash('Нет API аккаунтов')
             return render_template('letter.html', attachments=attachments, macros=macros)
 
-        client = ApiClient(get_domain(), account.api_key, account.uuid, login=account.login, from_name=account.first_name or '')
+        proxy_addr = acquire_proxy()
+        client = ApiClient(
+            get_domain(),
+            account.api_key,
+            account.uuid,
+            login=account.login,
+            from_name=account.first_name or '',
+            user_agent=get_user_agent(),
+            proxy=proxy_addr,
+        )
         if not client.check_account():
             flash('Аккаунт недоступен')
             return render_template('letter.html', attachments=attachments, macros=macros)
@@ -302,18 +339,23 @@ def api_accounts():
 @login_required
 def settings():
     domain_setting = Setting.query.filter_by(key='domain').first()
+    ua_setting = Setting.query.filter_by(key='user_agent').first()
     if request.method == 'POST':
         domain = request.form.get('domain')
+        user_agent = request.form.get('user_agent')
         password = request.form.get('password')
         if domain:
             domain_setting.value = domain
+        if user_agent and ua_setting:
+            ua_setting.value = user_agent
         if password:
             user = User.query.filter_by(username='admin').first()
             user.set_password(password)
         db.session.commit()
         flash('Настройки сохранены')
     domain = domain_setting.value if domain_setting else ''
-    return render_template('settings.html', domain=domain)
+    user_agent = ua_setting.value if ua_setting else ''
+    return render_template('settings.html', domain=domain, user_agent=user_agent)
 
 
 if __name__ == '__main__':
