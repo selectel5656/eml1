@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<h2>Настройки</h2>
+<form method="post">
+<div class="mb-3">
+ <label>Домен API</label>
+ <input name="domain" class="form-control" value="{{domain}}">
+</div>
+<div class="mb-3">
+ <label>Новый пароль администратора</label>
+ <input type="password" name="password" class="form-control">
+</div>
+<button class="btn btn-primary">Сохранить</button>
+</form>
+{% endblock %}

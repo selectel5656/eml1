@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}База e-mail{% endblock %}
+{% block content %}
+<h2>База e-mail</h2>
+<p>Всего адресов: {{count}}</p>
+<table class="table">
+<tr><th>Имя</th><th>Email</th></tr>
+{% for e in emails %}
+<tr><td>{{e.name}}</td><td>{{e.email}}</td></tr>
+{% endfor %}
+</table>
+<h3>Загрузка</h3>
+<form method="post" enctype="multipart/form-data">
+<div class="mb-3">
+ <label>Формат</label>
+ <select name="format" class="form-select">
+   <option value="1">Имя &lt;login@domen.ru&gt;</option>
+   <option value="2">Имя &lt;login@domen.ru&gt;;</option>
+   <option value="3">login@domen.ru</option>
+ </select>
+</div>
+<div class="mb-3">
+ <input type="file" class="form-control" name="file">
+</div>
+<button class="btn btn-primary">Загрузить</button>
+</form>
+{% endblock %}
