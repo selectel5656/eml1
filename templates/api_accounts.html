@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Аккаунты API{% endblock %}
+{% block content %}
+<h2>Аккаунты API</h2>
+<table class="table">
+<tr><th>Логин</th><th>Имя</th><th>Фамилия</th><th>UUID</th></tr>
+{% for a in accounts %}
+<tr><td>{{a.login}}</td><td>{{a.first_name}}</td><td>{{a.last_name}}</td><td>{{a.uuid}}</td></tr>
+{% endfor %}
+</table>
+<h3>Загрузка</h3>
+<form method="post" enctype="multipart/form-data">
+<div class="mb-3">
+ <input type="file" class="form-control" name="file">
+</div>
+<button class="btn btn-primary">Загрузить</button>
+</form>
+{% endblock %}
