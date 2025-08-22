@@ -19,6 +19,8 @@ class EmailEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200))
     email = db.Column(db.String(200), unique=True, nullable=False)
+    in_progress = db.Column(db.Boolean, default=False)
+    sent = db.Column(db.Boolean, default=False)
 
 class Macro(db.Model):
     id = db.Column(db.Integer, primary_key=True)

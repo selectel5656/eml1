@@ -400,10 +400,14 @@ def letter():
 
             subject = render_macros(subject_raw)
             body = render_macros(body_raw)
-            recipients = [e.email for e in EmailEntry.query.limit(rec_count).all()]
-            if not recipients:
+            emails = EmailEntry.query.filter_by(sent=False, in_progress=False).limit(rec_count).all()
+            if not emails:
                 flash('Нет получателей')
                 return render_template('letter.html', attachments=attachments, macros=macros)
+            for e in emails:
+                e.in_progress = True
+            db.session.commit()
+            recipients = [e.email for e in emails]
             for _ in range(attempts):
                 operation_id = client.generate_operation_id()
                 if not operation_id:
@@ -426,6 +430,9 @@ def letter():
             account.send_count = account.send_count + 1
             total_sent = int(get_setting('total_sent', '0')) + 1
             Setting.query.filter_by(key='total_sent').first().value = str(total_sent)
+            for e in emails:
+                e.sent = True
+                e.in_progress = False
             db.session.commit()
             if q_every and q_email and total_sent % q_every == 0:
                 qc_id = client.generate_operation_id()
@@ -442,6 +449,9 @@ def letter():
             if pause > 0:
                 time.sleep(pause)
         else:
+            for e in emails:
+                e.in_progress = False
+            db.session.commit()
             flash('Ошибка отправки письма')
     return render_template('letter.html', attachments=attachments, macros=macros)
 
@@ -492,6 +502,15 @@ def delete_email(email_id):
     db.session.delete(entry)
     db.session.commit()
     flash('Адрес удален')
+    return redirect(url_for('email_base'))
+
+
+@app.route('/email_base/reset_flags')
+@login_required
+def reset_email_flags():
+    EmailEntry.query.update({EmailEntry.sent: False, EmailEntry.in_progress: False})
+    db.session.commit()
+    flash('Метки сброшены')
     return redirect(url_for('email_base'))
 
 

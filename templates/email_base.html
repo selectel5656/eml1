@@ -3,6 +3,7 @@
 {% block content %}
 <h2>База e-mail</h2>
 <p>Всего адресов: {{count}}</p>
+<a class="btn btn-secondary mb-3" href="{{ url_for('reset_email_flags') }}">Сбросить метки</a>
 <table class="table">
 <tr><th>Имя</th><th>Email</th><th>Действия</th></tr>
 {% for e in emails %}
