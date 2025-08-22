@@ -2,6 +2,7 @@ import os
 import base64
 import random
 import string
+import time
 import requests
 from functools import wraps
 from flask import (
@@ -39,6 +40,22 @@ def init_db():
             db.session.add(Setting(key='cycle_accounts', value='no'))
         if not Setting.query.filter_by(key='send_attempts').first():
             db.session.add(Setting(key='send_attempts', value='1'))
+        if not Setting.query.filter_by(key='server_timeout').first():
+            db.session.add(Setting(key='server_timeout', value='30'))
+        if not Setting.query.filter_by(key='pause_between').first():
+            db.session.add(Setting(key='pause_between', value='0'))
+        if not Setting.query.filter_by(key='recipients_per_message').first():
+            db.session.add(Setting(key='recipients_per_message', value='1'))
+        if not Setting.query.filter_by(key='recipient_method').first():
+            db.session.add(Setting(key='recipient_method', value='bcc'))
+        if not Setting.query.filter_by(key='first_recipient_to').first():
+            db.session.add(Setting(key='first_recipient_to', value='no'))
+        if not Setting.query.filter_by(key='quality_every').first():
+            db.session.add(Setting(key='quality_every', value='0'))
+        if not Setting.query.filter_by(key='quality_email').first():
+            db.session.add(Setting(key='quality_email', value=''))
+        if not Setting.query.filter_by(key='total_sent').first():
+            db.session.add(Setting(key='total_sent', value='0'))
         db.session.commit()
 
 
@@ -174,6 +191,13 @@ def letter():
         limit = int(get_setting('per_account_limit', '1'))
         cycle = get_setting('cycle_accounts', 'no') == 'yes'
         attempts = int(get_setting('send_attempts', '1'))
+        timeout = int(get_setting('server_timeout', '30'))
+        pause = int(get_setting('pause_between', '0'))
+        rec_count = int(get_setting('recipients_per_message', '1'))
+        method = get_setting('recipient_method', 'bcc')
+        first = get_setting('first_recipient_to', 'no') == 'yes'
+        q_every = int(get_setting('quality_every', '0'))
+        q_email = get_setting('quality_email', '')
 
         account = ApiAccount.query.filter(ApiAccount.send_count < limit).order_by(ApiAccount.id).first()
         if not account and cycle:
@@ -193,6 +217,7 @@ def letter():
             from_name=account.first_name or '',
             user_agent=get_user_agent(),
             proxy=proxy_addr,
+            timeout=timeout,
         )
         if not client.check_account():
             flash('Аккаунт недоступен')
@@ -211,16 +236,40 @@ def letter():
                     att_urls.append(att.remote_url)
 
         operation_id = client.generate_operation_id()
-        recipients = [e.email for e in EmailEntry.query.limit(1).all()]
+        recipients = [e.email for e in EmailEntry.query.limit(rec_count).all()]
+        if not recipients:
+            flash('Нет получателей')
+            return render_template('letter.html', attachments=attachments, macros=macros)
         success = False
         for _ in range(attempts):
-            if client.send_mail(subject, body_rendered, recipients, att_urls, operation_id):
+            if client.send_mail(
+                subject,
+                body_rendered,
+                recipients,
+                att_urls,
+                operation_id,
+                method=method,
+                first_to=first,
+            ):
                 success = True
                 break
         if success:
             account.send_count = account.send_count + 1
+            total_sent = int(get_setting('total_sent', '0')) + 1
+            Setting.query.filter_by(key='total_sent').first().value = str(total_sent)
             db.session.commit()
+            if q_every and q_email and total_sent % q_every == 0:
+                client.send_mail(
+                    'Test',
+                    'Quality check',
+                    [q_email],
+                    [],
+                    client.generate_operation_id(),
+                    method='to',
+                )
             flash('Письмо отправлено через API')
+            if pause > 0:
+                time.sleep(pause)
         else:
             flash('Ошибка отправки письма')
     return render_template('letter.html', attachments=attachments, macros=macros)
@@ -360,16 +409,49 @@ def api_rules():
     limit = get_setting('per_account_limit', '1')
     cycle = get_setting('cycle_accounts', 'no')
     attempts = get_setting('send_attempts', '1')
+    timeout = get_setting('server_timeout', '30')
+    pause = get_setting('pause_between', '0')
+    recipients = get_setting('recipients_per_message', '1')
+    method = get_setting('recipient_method', 'bcc')
+    first = get_setting('first_recipient_to', 'no')
+    q_every = get_setting('quality_every', '0')
+    q_email = get_setting('quality_email', '')
     if request.method == 'POST':
         limit = request.form.get('per_account_limit') or '1'
         cycle = 'yes' if request.form.get('cycle_accounts') else 'no'
         attempts = request.form.get('send_attempts') or '1'
+        timeout = request.form.get('server_timeout') or '30'
+        pause = request.form.get('pause_between') or '0'
+        recipients = request.form.get('recipients_per_message') or '1'
+        method = request.form.get('recipient_method') or 'bcc'
+        first = 'yes' if request.form.get('first_recipient_to') else 'no'
+        q_every = request.form.get('quality_every') or '0'
+        q_email = request.form.get('quality_email') or ''
         Setting.query.filter_by(key='per_account_limit').first().value = limit
         Setting.query.filter_by(key='cycle_accounts').first().value = cycle
         Setting.query.filter_by(key='send_attempts').first().value = attempts
+        Setting.query.filter_by(key='server_timeout').first().value = timeout
+        Setting.query.filter_by(key='pause_between').first().value = pause
+        Setting.query.filter_by(key='recipients_per_message').first().value = recipients
+        Setting.query.filter_by(key='recipient_method').first().value = method
+        Setting.query.filter_by(key='first_recipient_to').first().value = first
+        Setting.query.filter_by(key='quality_every').first().value = q_every
+        Setting.query.filter_by(key='quality_email').first().value = q_email
         db.session.commit()
         flash('Правила сохранены')
-    return render_template('api_rules.html', limit=limit, cycle=cycle == 'yes', attempts=attempts)
+    return render_template(
+        'api_rules.html',
+        limit=limit,
+        cycle=cycle == 'yes',
+        attempts=attempts,
+        timeout=timeout,
+        pause=pause,
+        recipients=recipients,
+        method=method,
+        first=first == 'yes',
+        q_every=q_every,
+        q_email=q_email,
+    )
 
 
 # ------- Proxies -------

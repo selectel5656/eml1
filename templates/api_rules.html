@@ -15,6 +15,38 @@
     <label class="form-label">Количество попыток отправки</label>
     <input type="number" class="form-control" name="send_attempts" value="{{ attempts }}">
   </div>
+  <div class="mb-3">
+    <label class="form-label">Таймаут ответа сервера (сек)</label>
+    <input type="number" class="form-control" name="server_timeout" value="{{ timeout }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Пауза между отправками (сек)</label>
+    <input type="number" class="form-control" name="pause_between" value="{{ pause }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Количество получателей одного письма</label>
+    <input type="number" class="form-control" name="recipients_per_message" value="{{ recipients }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Метод добавления получателей</label>
+    <select class="form-select" name="recipient_method">
+      <option value="to" {% if method=='to' %}selected{% endif %}>TO</option>
+      <option value="cc" {% if method=='cc' %}selected{% endif %}>CC</option>
+      <option value="bcc" {% if method=='bcc' %}selected{% endif %}>BCC</option>
+    </select>
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="first_recipient_to" id="first" {% if first %}checked{% endif %}>
+    <label class="form-check-label" for="first">Все получатели в CC/BCC, кроме первого</label>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Проверка качества: каждые N писем</label>
+    <input type="number" class="form-control" name="quality_every" value="{{ q_every }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Email для проверки</label>
+    <input type="email" class="form-control" name="quality_email" value="{{ q_email }}">
+  </div>
   <button class="btn btn-primary">Сохранить</button>
 </form>
 {% endblock %}

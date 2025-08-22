@@ -17,6 +17,7 @@ class ApiClient:
         from_name: str = '',
         user_agent: str | None = None,
         proxy: str | None = None,
+        timeout: int = 30,
     ):
         self.domain = domain
         self.api_key = api_key
@@ -25,6 +26,7 @@ class ApiClient:
         self.from_name = from_name
         self.user_agent = user_agent or self.USER_AGENT
         self.proxy = proxy
+        self.timeout = timeout
 
     def _headers(self, content_type: str = 'application/x-www-form-urlencoded') -> Dict[str, str]:
         headers = {
@@ -47,7 +49,12 @@ class ApiClient:
     def check_account(self) -> bool:
         url = f'https://mail.{self.domain}/api/mobile/v1/reset_fresh?app_state=active&uuid={self.uuid}'
         try:
-            r = requests.get(url, headers=self._headers(), proxies=self._proxies())
+            r = requests.get(
+                url,
+                headers=self._headers(),
+                proxies=self._proxies(),
+                timeout=self.timeout,
+            )
             data = r.json()
             return data.get('status', {}).get('status') == 1
         except Exception:
@@ -59,7 +66,12 @@ class ApiClient:
             f'?app_state=foreground&uuid={self.uuid}&client=iphone'
         )
         try:
-            r = requests.get(url, headers=self._headers(), proxies=self._proxies())
+            r = requests.get(
+                url,
+                headers=self._headers(),
+                proxies=self._proxies(),
+                timeout=self.timeout,
+            )
             data = r.json()
             return data.get('operation_id', '')
         except Exception:
@@ -81,12 +93,22 @@ class ApiClient:
                     headers=self._headers(content_type=None),
                     files=files,
                     proxies=self._proxies(),
+                    timeout=self.timeout,
                 )
                 return r.json()
         except Exception:
             return {}
 
-    def send_mail(self, subject: str, body: str, recipients: List[str], att_urls: List[str], operation_id: str) -> bool:
+    def send_mail(
+        self,
+        subject: str,
+        body: str,
+        recipients: List[str],
+        att_urls: List[str],
+        operation_id: str,
+        method: str = 'bcc',
+        first_to: bool = False,
+    ) -> bool:
         url = f'https://mail.{self.domain}/api/mobile/v1/send?app_state=foreground&uuid={self.uuid}'
         payload = {
             'att_ids': att_urls,
@@ -97,15 +119,30 @@ class ApiClient:
             'operation_id': operation_id,
             'compose_check': '',
             'from_mailbox': self.login,
-            'bcc': '; '.join(recipients),
             'from_name': self.from_name,
         }
+        rec_str = '; '.join(recipients)
+        if method == 'to':
+            payload['to'] = rec_str
+        elif method == 'cc':
+            if first_to and len(recipients) > 1:
+                payload['to'] = recipients[0]
+                payload['cc'] = '; '.join(recipients[1:])
+            else:
+                payload['cc'] = rec_str
+        else:  # bcc
+            if first_to and len(recipients) > 1:
+                payload['to'] = recipients[0]
+                payload['bcc'] = '; '.join(recipients[1:])
+            else:
+                payload['bcc'] = rec_str
         try:
             r = requests.post(
                 url,
                 headers=self._headers('application/json'),
                 json=payload,
                 proxies=self._proxies(),
+                timeout=self.timeout,
             )
             data = r.json()
             return data.get('status', {}).get('status') == 1
