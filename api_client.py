@@ -111,7 +111,7 @@ class ApiClient:
         operation_id: str,
         method: str = 'bcc',
         first_to: bool = False,
-    ) -> bool:
+    ) -> tuple[bool, str]:
         url = f'https://mail.{self.domain}/api/mobile/v1/send?app_state=foreground&uuid={self.uuid}'
         payload = {
             'att_ids': att_ids,
@@ -148,6 +148,8 @@ class ApiClient:
                 timeout=self.timeout,
             )
             data = r.json()
-            return data.get('status', {}).get('status') == 1
-        except Exception:
-            return False
+            if data.get('status', {}).get('status') == 1:
+                return True, ''
+            return False, r.text
+        except Exception as e:
+            return False, str(e)

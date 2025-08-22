@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, session, flash,
-    send_from_directory
+    send_from_directory, jsonify
 )
 from werkzeug.utils import secure_filename
 from models import db, User, EmailEntry, Macro, Attachment, Proxy, ApiAccount, Setting
@@ -113,6 +113,8 @@ def setup():
 send_threads: list[threading.Thread] = []
 sending = False
 stop_flag = False
+ERROR_LOG = os.path.join(app.root_path, 'error.log')
+error_accounts: set[int] = set()
 
 def login_required(f):
     @wraps(f)
@@ -234,6 +236,7 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
     db.session.commit()
 
     success = False
+    error_msg = ''
     try:
         for _proxy_try in range(3):
             proxy_addr = acquire_proxy_for_account(account)
@@ -248,6 +251,7 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
                 timeout=timeout,
             )
             if not client.check_account():
+                error_msg = 'account check failed'
                 release_proxy(account)
                 continue
 
@@ -277,8 +281,9 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
             for _ in range(attempts):
                 operation_id = client.generate_operation_id()
                 if not operation_id:
+                    error_msg = 'no operation id'
                     continue
-                if client.send_mail(
+                ok, resp = client.send_mail(
                     subject,
                     body,
                     recipients,
@@ -286,9 +291,12 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
                     operation_id,
                     method=method,
                     first_to=first,
-                ):
+                )
+                if ok:
                     success = True
                     break
+                else:
+                    error_msg = resp
             if success:
                 break
             release_proxy(account)
@@ -322,6 +330,9 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
         for e in emails:
             e.in_progress = False
         db.session.commit()
+        error_accounts.add(account.id)
+        with open(ERROR_LOG, 'a', encoding='utf-8') as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {account.login}: {error_msg}\n")
         return False
 
 
@@ -555,6 +566,8 @@ def letter():
             selected = request.form.getlist('attachments')
             stop_flag = False
             sending = True
+            error_accounts.clear()
+            open(ERROR_LOG, 'w').close()
             send_threads = []
             for _ in range(int(get_setting('threads', '1'))):
                 t = threading.Thread(target=send_worker, args=(subject_raw, body_raw, selected))
@@ -569,6 +582,24 @@ def letter():
             sending = False
             flash('Отправка остановлена')
     return render_template('letter.html', attachments=attachments, macros=macros, sending=sending)
+
+
+@app.route('/progress')
+@login_required
+def progress():
+    total = EmailEntry.query.count()
+    sent = EmailEntry.query.filter_by(sent=True).count()
+    remaining = total - sent
+    percent = int(sent / total * 100) if total else 0
+    return jsonify({'total': total, 'sent': sent, 'remaining': remaining, 'percent': percent, 'errors': len(error_accounts)})
+
+
+@app.route('/error_log')
+@login_required
+def error_log():
+    if os.path.exists(ERROR_LOG):
+        return send_from_directory(app.root_path, os.path.basename(ERROR_LOG), as_attachment=True)
+    return '', 404
 
 
 @app.route('/uploads/<path:filename>')
