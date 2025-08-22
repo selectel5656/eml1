@@ -1,0 +1,25 @@
+<!doctype html>
+<title>Настройка БД</title>
+<h1>Настройка базы данных</h1>
+<form method="post">
+  <p>
+    <label><input type="radio" name="db_type" value="sqlite" checked> SQLite (data.db)</label>
+  </p>
+  <p>
+    <label><input type="radio" name="db_type" value="mysql"> MySQL</label>
+  </p>
+  <div id="mysql_fields">
+    <p>Хост: <input name="host" value="localhost"></p>
+    <p>Порт: <input name="port" value="3306"></p>
+    <p>Пользователь: <input name="user"></p>
+    <p>Пароль: <input type="password" name="password"></p>
+    <p>База данных: <input name="name"></p>
+  </div>
+  <button type="submit">Сохранить</button>
+</form>
+<script>
+const mysqlFields=document.getElementById('mysql_fields');
+function toggle(){mysqlFields.style.display=document.querySelector('input[name="db_type"]:checked').value==='mysql'?'block':'none';}
+document.querySelectorAll('input[name="db_type"]').forEach(r=>r.addEventListener('change',toggle));
+toggle();
+</script>

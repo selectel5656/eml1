@@ -6,6 +6,7 @@ import time
 import requests
 import quopri
 import threading
+import json
 from PIL import Image, ImageDraw
 from functools import wraps
 from flask import (
@@ -17,30 +18,24 @@ from models import db, User, EmailEntry, Macro, Attachment, Proxy, ApiAccount, S
 from api_client import ApiClient
 
 app = Flask(__name__)
-
-# Use MySQL by default; allow override via DATABASE_URL environment variable.
-# Falls back to SQLite only if initialization fails (e.g., no MySQL server available).
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-    'DATABASE_URL', 'mysql+pymysql://user:password@localhost/eml'
-)
 app.config['SECRET_KEY'] = 'dev'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'uploads')
-
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-db.init_app(app)
+CONFIG_FILE = os.path.join(app.root_path, 'config.json')
+db_configured = False
+
+
+def configure_db(uri: str) -> None:
+    app.config['SQLALCHEMY_DATABASE_URI'] = uri
+    db.init_app(app)
+    init_db()
 
 
 def init_db():
     """Initialize database and seed default settings."""
     with app.app_context():
-        try:
-            db.create_all()
-        except Exception:
-            # Fallback to SQLite if MySQL is unreachable
-            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
-            db.init_app(app)
-            db.create_all()
+        db.create_all()
         if not User.query.filter_by(username='admin').first():
             u = User(username='admin')
             u.set_password('admin')
@@ -74,12 +69,45 @@ def init_db():
         if not Setting.query.filter_by(key='total_sent').first():
             db.session.add(Setting(key='total_sent', value='0'))
         db.session.commit()
-        # ensure all API accounts are free on startup
         ApiAccount.query.update({ApiAccount.in_use: False})
         db.session.commit()
 
 
-init_db()
+if os.path.exists(CONFIG_FILE):
+    with open(CONFIG_FILE) as f:
+        data = json.load(f)
+    configure_db(data.get('database_uri', 'sqlite:///data.db'))
+    db_configured = True
+
+
+@app.before_request
+def ensure_setup():
+    if not db_configured and request.endpoint not in ('setup', 'static'):
+        return redirect(url_for('setup'))
+
+
+@app.route('/setup', methods=['GET', 'POST'])
+def setup():
+    global db_configured
+    if db_configured:
+        return redirect(url_for('login'))
+    if request.method == 'POST':
+        db_type = request.form['db_type']
+        if db_type == 'sqlite':
+            uri = 'sqlite:///data.db'
+        else:
+            host = request.form.get('host', 'localhost')
+            port = request.form.get('port', '3306')
+            user = request.form.get('user', '')
+            password = request.form.get('password', '')
+            name = request.form.get('name', '')
+            uri = f"mysql+pymysql://{user}:{password}@{host}:{port}/{name}"
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump({'database_uri': uri}, f)
+        configure_db(uri)
+        db_configured = True
+        return redirect(url_for('login'))
+    return render_template('setup.html')
 
 
 send_threads: list[threading.Thread] = []

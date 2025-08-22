@@ -18,10 +18,9 @@ cd eml_panel
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-export DATABASE_URL="mysql+pymysql://root:@localhost/eml"
 python app.py
 ```
-Панель будет доступна по адресу `http://<IP>:5000`.
+Панель будет доступна по адресу `http://<IP>:5000`. При первом запуске появится страница настройки базы данных, где можно выбрать SQLite или ввести параметры MySQL.
 
 ### Windows
 ```powershell
@@ -30,11 +29,9 @@ cd eml_panel
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-# Предполагается установленный MySQL и создана база eml
-set DATABASE_URL=mysql+pymysql://root:@localhost/eml
 python app.py
 ```
-Затем откройте `http://localhost:5000` в браузере.
+Затем откройте `http://localhost:5000` в браузере. При первом запуске выберите тип базы данных и, при необходимости, укажите параметры подключения к MySQL.
 
 
 Вход в панель должен быть по логину и паролю по умолчанию это пусть будет admin/admin
