@@ -21,14 +21,27 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# configure a default database so the extension initializes before the first request
+app.config.setdefault('SQLALCHEMY_DATABASE_URI', 'sqlite:///data.db')
+db.init_app(app)
 
 CONFIG_FILE = os.path.join(app.root_path, 'config.json')
 db_configured = False
 
 
 def configure_db(uri: str) -> None:
+    """Switch the database URI and initialize tables.
+
+    Flask-SQLAlchemy must be initialized before the first request, so we only
+    update the URI here and dispose of the old engine instead of calling
+    ``db.init_app`` again.
+    """
     app.config['SQLALCHEMY_DATABASE_URI'] = uri
-    db.init_app(app)
+    # discard old connections so the new URI is used
+    try:
+        db.engine.dispose()
+    except Exception:
+        pass
     init_db()
 
 
