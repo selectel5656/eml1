@@ -930,6 +930,7 @@ def attachments():
                         os.remove(path)
                         filename = os.path.basename(pdf_path)
                         path = pdf_path
+                        send_name = os.path.splitext(send_name)[0] + '.pdf'
                     except Exception:
                         pass
             attach = Attachment(display_name=display_name, filename=filename, send_filename=send_name,
