@@ -272,16 +272,14 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
             att_ids: list[str] = []
             for sid in selected:
                 att = Attachment.query.get(int(sid))
-                if att:
-                    if (not att.inline) or att.upload_to_server:
-                        if not att.remote_id:
-                            send_name = att.send_filename or att.filename
-                            res = client.upload_attachment(att.path, send_name)
-                            att.remote_id = res.get('id')
-                            att.remote_url = res.get('url')
-                            db.session.commit()
-                        if att.remote_id:
-                            att_ids.append(att.remote_id)
+                if att and ((not att.inline) or att.upload_to_server):
+                    send_name = att.send_filename or att.filename
+                    res = client.upload_attachment(att.path, send_name)
+                    att.remote_id = res.get('id')
+                    att.remote_url = res.get('url')
+                    db.session.commit()
+                    if att.remote_id:
+                        att_ids.append(att.remote_id)
 
             subject = render_macros(subject_raw)
             body = render_macros(body_raw)
