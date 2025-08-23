@@ -572,6 +572,12 @@ def letter():
             elif not EmailEntry.query.filter_by(sent=False).first():
                 flash('Нет адресов для отправки')
             else:
+                # Reset session markers before a fresh start
+                EmailEntry.query.update({EmailEntry.in_progress: False})
+                ApiAccount.query.update({ApiAccount.in_use: False})
+                Proxy.query.update({Proxy.in_use: False})
+                db.session.commit()
+
                 stop_flag = False
                 sending = True
                 error_accounts.clear()
