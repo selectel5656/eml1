@@ -250,6 +250,7 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
 
     success = False
     error_msg = ''
+    emails: list[EmailEntry] = []
     try:
         for _proxy_try in range(3):
             proxy_addr = acquire_proxy_for_account(account)
