@@ -1014,6 +1014,16 @@ def delete_proxy(proxy_id):
     return redirect(url_for('proxies'))
 
 
+@app.route('/proxies/reset')
+@login_required
+def reset_proxies():
+    """Clear in-use marks so proxies can be reused."""
+    Proxy.query.update({Proxy.in_use: False})
+    db.session.commit()
+    flash('Метки прокси сброшены')
+    return redirect(url_for('proxies'))
+
+
 # ------- API Accounts -------
 @app.route('/api_accounts', methods=['GET', 'POST'])
 @login_required
