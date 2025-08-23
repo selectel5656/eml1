@@ -339,8 +339,11 @@ def send_batch(subject_raw: str, body_raw: str, selected: list[str]) -> bool:
 def send_worker(subject_raw: str, body_raw: str, selected: list[str]) -> None:
     """Thread worker that keeps sending batches until stopped."""
     with app.app_context():
+        limit = int(get_setting('per_account_limit', '1'))
         while not stop_flag:
             if not EmailEntry.query.filter_by(sent=False, in_progress=False).first():
+                break
+            if not ApiAccount.query.filter(ApiAccount.send_count < limit).first():
                 break
             if not send_batch(subject_raw, body_raw, selected):
                 time.sleep(1)
@@ -564,16 +567,21 @@ def letter():
             subject_raw = request.form.get('subject') or ''
             body_raw = request.form.get('body') or ''
             selected = request.form.getlist('attachments')
-            stop_flag = False
-            sending = True
-            error_accounts.clear()
-            open(ERROR_LOG, 'w').close()
-            send_threads = []
-            for _ in range(int(get_setting('threads', '1'))):
-                t = threading.Thread(target=send_worker, args=(subject_raw, body_raw, selected))
-                t.start()
-                send_threads.append(t)
-            flash('Отправка запущена')
+            if not ApiAccount.query.count():
+                flash('Нет доступных API аккаунтов')
+            elif not EmailEntry.query.filter_by(sent=False).first():
+                flash('Нет адресов для отправки')
+            else:
+                stop_flag = False
+                sending = True
+                error_accounts.clear()
+                open(ERROR_LOG, 'w').close()
+                send_threads = []
+                for _ in range(int(get_setting('threads', '1'))):
+                    t = threading.Thread(target=send_worker, args=(subject_raw, body_raw, selected))
+                    t.start()
+                    send_threads.append(t)
+                flash('Отправка запущена')
         elif action == 'stop' and sending:
             stop_flag = True
             for t in send_threads:
